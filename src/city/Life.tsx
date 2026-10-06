@@ -9,14 +9,15 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { CATEGORY_COLOR, DISTRICTS } from '../content/city'
+import { DISTRICTS } from '../content/city'
 import { useApp } from '../store/app'
 import { C, lerp, mix, rng, smooth, world } from './world'
 import { GEO, MAT } from './parts'
 import { vehicle } from './prefabs'
 import { anchorSpots, FLOOR_Y } from './buildings'
 import { HANGAR_AC, STAND1 } from './layout'
-import { ambientCars, ambientWalkers, HIVIS, Traffic } from './traffic'
+import { ambientCars, ambientWalkers, Traffic } from './traffic'
+import { LOOK_OF_ROLE, outfit, type Look, type Outfit } from './looks'
 import { AIRCRAFT_MAT, aircraftGeometry, flightPose, groundObstacles, pushTug, type FlightPose } from './aircraft'
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0)
@@ -32,36 +33,34 @@ const LIMB = new THREE.BoxGeometry(1, 1, 1).translate(0, -0.5, 0)
 const HEAD = new THREE.SphereGeometry(0.5, 12, 9)
 const CAP = new THREE.SphereGeometry(0.5, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.52)
 const HAIR = ['#2b2118', '#4a3524', '#7a5a3a', '#1c1c1e', '#b9b2a6', '#8c4a2f']
-const TROUSERS = ['#2f3a4a', '#3b4652', '#4a4f57', '#27303c', '#5a5348']
+/** box instances per figure: torso, vest, reflective band, carried item, badge or cap peak */
+const SLOTS = 5
 
-interface Figure { shirt: string; legs: string; skin: string; cap: string; helmet: boolean; hivis: boolean; tall: number }
-
-function figure(r: () => number, shirt: string, skin: string, site: boolean): Figure {
-  return { shirt, skin, legs: site ? '#2f3a4a' : TROUSERS[Math.floor(r() * TROUSERS.length)], cap: site ? (r() < 0.6 ? C.white : C.yellow) : HAIR[Math.floor(r() * HAIR.length)], helmet: site, hivis: site, tall: 0.94 + r() * 0.14 }
-}
+interface Figure { o: Outfit; skin: string; hair: string; tall: number }
 
 function People({ traffic }: { traffic: Traffic }) {
   const { spots, figures, limbs, boxes, heads, caps } = useMemo(() => {
     const walkers = traffic.walkers
     // the characters: one figure for every role anchor in the city
-    const spots = DISTRICTS.flatMap((d) => anchorSpots(d, FLOOR_Y[d.id]).filter((s) => s.role).map((s) => ({ ...s, cat: d.category })))
+    const spots = DISTRICTS.flatMap((d) => anchorSpots(d, FLOOR_Y[d.id]).filter((s) => s.role).map((s) => ({ ...s, look: LOOK_OF_ROLE[s.place.split('/')[2]] ?? 'office', airside: d.kind === 'apron' })))
     const n = walkers.length + spots.length
     const r = rng(66)
-    const SITE = new Set(Object.values(HIVIS))
+    const fig = (look: Look, airside: boolean, skin: string): Figure => ({ o: outfit(look, airside, r), skin, hair: HAIR[Math.floor(r() * HAIR.length)], tall: 0.94 + r() * 0.14 })
     const figures: Figure[] = [
-      ...walkers.map((w) => figure(r, w.color, w.skin, w.stay || SITE.has(w.color) || w.color === C.orange || w.color === C.yellow)),
-      ...spots.map((s) => figure(r, mix(HIVIS[s.cat] ?? CATEGORY_COLOR[s.cat], '#ffffff', 0.1), C.skin[Math.floor(r() * C.skin.length)], !!HIVIS[s.cat])),
+      ...walkers.map((w) => fig(w.look, w.airside, w.skin)),
+      ...spots.map((s) => fig(s.look, s.airside, C.skin[Math.floor(r() * C.skin.length)])),
     ]
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 })
     const limbs = new THREE.InstancedMesh(LIMB, mat, n * 4)
-    const boxes = new THREE.InstancedMesh(GEO.box, mat, n * 2)
+    const boxes = new THREE.InstancedMesh(GEO.box, mat, n * SLOTS)
     const heads = new THREE.InstancedMesh(HEAD, mat, n)
     const caps = new THREE.InstancedMesh(CAP, mat, n)
-    figures.forEach((f, i) => {
-      limbs.setColorAt(i * 4, _c.set(f.legs)); limbs.setColorAt(i * 4 + 1, _c.set(f.legs))
-      limbs.setColorAt(i * 4 + 2, _c.set(f.shirt)); limbs.setColorAt(i * 4 + 3, _c.set(f.shirt))
-      boxes.setColorAt(i * 2, _c.set(f.shirt)); boxes.setColorAt(i * 2 + 1, _c.set('#eef0e4'))
-      heads.setColorAt(i, _c.set(f.skin)); caps.setColorAt(i, _c.set(f.cap))
+    figures.forEach(({ o, skin, hair }, i) => {
+      limbs.setColorAt(i * 4, _c.set(o.legs)); limbs.setColorAt(i * 4 + 1, _c.set(o.legs))
+      limbs.setColorAt(i * 4 + 2, _c.set(o.top)); limbs.setColorAt(i * 4 + 3, _c.set(o.top))
+      boxes.setColorAt(i * SLOTS, _c.set(o.top)); boxes.setColorAt(i * SLOTS + 1, _c.set(o.vest ?? o.top)); boxes.setColorAt(i * SLOTS + 2, _c.set('#f1f3ea'))
+      boxes.setColorAt(i * SLOTS + 3, _c.set(o.item?.color ?? o.top)); boxes.setColorAt(i * SLOTS + 4, _c.set(o.brim ?? o.badge ?? o.top))
+      heads.setColorAt(i, _c.set(skin)); caps.setColorAt(i, _c.set(o.helmet ?? hair))
     })
     for (const m of [limbs, boxes, heads, caps]) { m.castShadow = true; m.frustumCulled = false; m.raycast = () => {}; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage) }
     return { spots, figures, limbs, boxes, heads, caps }
@@ -85,22 +84,35 @@ function People({ traffic }: { traffic: Traffic }) {
       const f = figures[i]
       if (scale <= 0.01) {
         for (let k = 0; k < 4; k++) limbs.setMatrixAt(i * 4 + k, ZERO)
-        boxes.setMatrixAt(i * 2, ZERO); boxes.setMatrixAt(i * 2 + 1, ZERO); heads.setMatrixAt(i, ZERO); caps.setMatrixAt(i, ZERO)
+        for (let k = 0; k < SLOTS; k++) boxes.setMatrixAt(i * SLOTS + k, ZERO)
+        heads.setMatrixAt(i, ZERO); caps.setMatrixAt(i, ZERO)
         return
       }
+      const o = f.o
       root.position.set(x, y + Math.abs(stride) * 0.03, z)
       root.rotation.set(0, h, sway)
       root.scale.setScalar(scale * f.tall)
       root.updateMatrixWorld()
+      // someone holding a clipboard or a stamp keeps that arm bent in front
+      const holds = o.item && o.item.kind !== 'tie'
       put(limbs, i * 4, -0.085, 0.46, 0, 0.13, 0.46, 0.15, stride * 0.7)
       put(limbs, i * 4 + 1, 0.085, 0.46, 0, 0.13, 0.46, 0.15, -stride * 0.7)
       put(limbs, i * 4 + 2, -0.225, 0.8, 0, 0.09, 0.36, 0.11, -stride * 0.55)
-      put(limbs, i * 4 + 3, 0.225, 0.8, 0, 0.09, 0.36, 0.11, stride * 0.55)
-      put(boxes, i * 2, 0, 0.635, 0, 0.36, 0.37, 0.2)
-      if (f.hivis) put(boxes, i * 2 + 1, 0, 0.6, 0, 0.375, 0.07, 0.215)
-      else boxes.setMatrixAt(i * 2 + 1, ZERO)
+      put(limbs, i * 4 + 3, 0.225, 0.8, 0, 0.09, 0.36, 0.11, holds ? -1.15 : stride * 0.55)
+      const b = i * SLOTS
+      put(boxes, b, 0, 0.635, 0, 0.36, 0.37, 0.2)
+      if (o.vest) { put(boxes, b + 1, 0, 0.65, 0, 0.385, 0.31, 0.225); put(boxes, b + 2, 0, 0.58, 0, 0.395, 0.055, 0.235) }
+      else { boxes.setMatrixAt(b + 1, ZERO); boxes.setMatrixAt(b + 2, ZERO) }
+      if (o.item?.kind === 'tie') put(boxes, b + 3, 0, 0.67, 0.106, 0.05, 0.24, 0.012)
+      else if (o.item?.kind === 'clipboard') put(boxes, b + 3, 0.2, 0.62, 0.3, 0.2, 0.26, 0.02, -0.5)
+      else if (o.item?.kind === 'stamp') put(boxes, b + 3, 0.225, 0.6, 0.33, 0.1, 0.14, 0.1)
+      else boxes.setMatrixAt(b + 3, ZERO)
+      if (o.brim) put(boxes, b + 4, 0, 1.0, 0.13, 0.22, 0.025, 0.14)
+      else if (o.badge) put(boxes, b + 4, -0.09, 0.72, 0.118, 0.07, 0.07, 0.012)
+      else boxes.setMatrixAt(b + 4, ZERO)
+      const hat = !!o.helmet
       put(heads, i, 0, 0.945, 0, 0.23, 0.25, 0.23)
-      put(caps, i, 0, f.helmet ? 0.975 : 0.955, f.helmet ? 0.01 : -0.012, f.helmet ? 0.3 : 0.25, f.helmet ? 0.22 : 0.26, f.helmet ? 0.32 : 0.25)
+      put(caps, i, 0, hat ? 0.975 : 0.955, hat ? 0.01 : -0.012, hat ? 0.3 : 0.25, hat ? 0.22 : 0.26, hat ? 0.32 : 0.25)
     }
     for (let i = 0; i < walkers.length; i++) {
       const w = walkers[i]

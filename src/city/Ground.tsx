@@ -10,6 +10,7 @@ import { C, rng, world } from './world'
 import { build, disposeGroup, GEO, place, type Part } from './parts'
 import { lamp, tree, vehicle } from './prefabs'
 import { APRON_LOOP, STAND1, STAND2, DOORS, FEET, PAVE, ZEBRAS } from './layout'
+import { AIRSIDE_Z } from './looks'
 import { Sign } from './Signs'
 import type { SignSpec } from './buildings'
 
@@ -124,6 +125,49 @@ function groundParts(): { parts: Part[]; pools: Pool[]; signs: SignSpec[] } {
     P.push({ p: [gx + s * 0.2, 1.1, gz + 3.5], s: [1.8, 2.2, 1.8], c: C.wall }, { p: [gx + s * 0.2, 2.3, gz + 3.5], s: [2.3, 0.16, 2.3], c: C.navy })
     P.push({ p: [gx + s * 0.2, 1.4, gz + 2.58], s: [1.2, 0.7, 0.05], c: C.glass, m: 'glass' })
     P.push({ p: [gx, 0.6, gz + 2.1], s: [0.2, 1.2, 0.2], c: C.steel }, { p: [gx, 2.3, gz + 1.5], s: [0.1, 2.4, 0.1], c: C.red, r: [0.55, 0, 0] })
+  }
+
+  // the airside boundary: a second fence across the campus, with a controlled gate on every road that crosses it.
+  // South of it — service road, hangar doors, apron — nobody walks without hi-vis.
+  {
+    const AZ = AIRSIDE_Z, RED = '#c8362b'
+    const hg = DISTRICTS.find((d) => d.id === 'hangar')!, ws = DISTRICTS.find((d) => d.id === 'workshops')!
+    const gates = ROADS.filter((rd) => rd.a[0] === rd.b[0]).map((rd) => rd.a[0]).sort((p, q) => p - q)
+    const solid = ([[hg.pos[0] - hg.size[0] / 2, hg.pos[0] + hg.size[0] / 2], [ws.pos[0] - ws.size[0] / 2, ws.pos[0] + ws.size[0] / 2], ...gates.map((g) => [g - 3.6, g + 3.6])] as [number, number][]).sort((p, q) => p[0] - q[0])
+    let x = minX
+    for (const [b0, b1] of [...solid, [maxX, maxX] as [number, number]]) {
+      if (b0 - x > 0.6) {
+        run(x, AZ, b0, AZ)
+        P.push({ p: [(x + b0) / 2, 1.72, AZ], s: [b0 - x, 0.08, 0.08], c: RED })
+        flat(x, b0, AZ - 0.5, AZ - 0.2, 0.076, RED, 0.004)
+      }
+      x = Math.max(x, b1)
+    }
+    for (const g of gates) {
+      // gantry with the sign, a red line on the ground, lifting arms over each lane, a guard hut and turnstiles on the pavements
+      for (const k of [-1, 1]) P.push({ p: [g + k * 3.6, 2.3, AZ], s: [0.22, 4.6, 0.22], c: C.steel })
+      P.push({ p: [g, 4.5, AZ], s: [7.6, 0.3, 0.3], c: C.steel }, { p: [g, 3.7, AZ - 0.06], s: [6.4, 1.2, 0.14], c: RED })
+      signs.push({ text: 'AIRSIDE', sub: 'PASS AND HI-VIS REQUIRED', p: [g, 3.7, AZ - 0.16], w: 6.0, h: 1.0, style: 'plate' })
+      flat(g - 3.5, g + 3.5, AZ - 0.3, AZ + 0.3, 0.084, RED, 0.006)
+      for (let i = 0; i < 9; i++) flat(g - 1.5 + i * 0.36, g - 1.5 + i * 0.36 + 0.18, AZ - 1.1, AZ - 0.45, 0.084, C.yellow, 0.006)
+      signs.push({ text: 'AIRSIDE', p: [g, 0.09, AZ - 2.6], w: 2.4, h: 0.7, flat: true, style: 'paint', color: 'rgba(240,235,221,.9)' })
+      for (const k of [-1, 1]) {
+        P.push({ p: [g + k * 1.62, 0.55, AZ + 0.5], s: [0.26, 1.1, 0.26], c: C.yellow })
+        P.push({ p: [g + k * 0.95, 1.55, AZ + 0.5], s: [1.5, 0.1, 0.1], c: RED, r: [0, 0, k * 0.95] }, { p: [g + k * 0.6, 2.05, AZ + 0.5], s: [0.3, 0.12, 0.12], c: C.white, r: [0, 0, k * 0.95] })
+        // turnstile
+        for (const o of [-0.5, 0.5]) P.push({ p: [g + k * PAVE + o, 0.55, AZ], s: [0.14, 1.1, 0.5], c: C.steelLight })
+        P.push({ p: [g + k * PAVE, 0.8, AZ], s: [0.8, 0.07, 0.07], c: RED }, { p: [g + k * PAVE + 0.5, 1.2, AZ - 0.1], s: [0.16, 0.2, 0.05], c: '#7fe0a0', m: 'glow' })
+      }
+      P.push({ p: [g + 5.2, 1.15, AZ + 1.5], s: [2.0, 2.3, 2.0], c: C.wall }, { p: [g + 5.2, 2.4, AZ + 1.5], s: [2.5, 0.16, 2.5], c: RED }, { p: [g + 5.2, 1.5, AZ + 0.48], s: [1.4, 0.8, 0.05], c: C.glass, m: 'glass' }, { p: [g + 4.15, 1.5, AZ + 1.5], s: [0.05, 0.8, 1.4], c: C.glass, m: 'glass' })
+    }
+  }
+
+  // a control tower beyond the apron: the landmark that tells you which way the airfield is
+  {
+    const tx = 70, tz = -38
+    P.push({ p: [tx, 0.2, tz], s: [7, 0.4, 7], c: C.pad }, { p: [tx, 7.5, tz], s: [3.0, 15, 3.0], c: C.wall, g: 'cyl' }, { p: [tx, 15.3, tz], s: [5.2, 0.6, 5.2], c: C.roofEdge, g: 'cyl' })
+    P.push({ p: [tx, 16.6, tz], s: [5.6, 2.2, 5.6], c: C.glassDark, g: 'cyl', m: 'glass' }, { p: [tx, 17.9, tz], s: [6.2, 0.4, 6.2], c: C.navy, g: 'cyl' }, { p: [tx, 19.6, tz], s: [0.14, 3, 0.14], c: C.steel, g: 'cyl' }, { p: [tx, 21.2, tz], s: [0.4, 0.4, 0.4], c: '#d3472f', g: 'sphere', m: 'glow' })
+    for (let y = 2.5; y < 14; y += 3) P.push({ p: [tx, y, tz - 1.5], s: [0.5, 0.9, 0.06], c: C.glassDark, m: 'glass' })
   }
 
   // lamps along the roads, floodlights over the apron

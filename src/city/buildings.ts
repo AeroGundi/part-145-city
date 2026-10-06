@@ -11,6 +11,7 @@
  */
 import { CATEGORY_COLOR, DISTRICTS, placePosition, roomRects, type District, type RoomRect } from '../content/city'
 import { C, clamp, hash, mix, rng, shade, tint } from './world'
+import { emblem } from './emblems'
 import { place, type Part, type V3 } from './parts'
 import { bench, bin, cone, cooler, cylinders, extinguisher, lockers, pallet, plant, platform, prop, toolChest, vehicle, workbench } from './prefabs'
 
@@ -513,6 +514,12 @@ function dress(c: Ctx, rc: RoomRect, spots: AnchorSpot[], zone?: string) {
   }
   const back = rc.z + rc.d / 2 - 0.42 * s, front = rc.z - rc.d / 2 + 0.45 * s, left = rc.x - rc.w / 2 + 0.45 * s, right = rc.x + rc.w / 2 - 0.45 * s
   const along = (n: number, i: number) => left + ((right - left) * (i + 0.5)) / n
+  // the room's own emblem goes in first, in the best free spot facing the door
+  const em = emblem(`${d.id}/${rc.room.id}`)
+  if (em) {
+    const er = 0.8 * s
+    void (put(em, right - 0.45 * s, back - 0.25 * s, er) || put(em, left + 0.45 * s, back - 0.25 * s, er) || put(em, rc.x, back - 0.25 * s, er) || put(em, right - 0.4 * s, rc.z, er) || put(em, left + 0.4 * s, rc.z, er) || put(em, right - 0.5 * s, front + 0.5 * s, er * 0.8))
+  }
   const industrial = d.kind === 'workshop' || d.kind === 'hangar'
   if (industrial) {
     // marked floor, a bench against the back wall, tools and gas, an extinguisher by the door

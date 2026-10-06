@@ -17,6 +17,7 @@ import { CATEGORY_COLOR, DISTRICT_BY_ID, ROADS, type Category } from '../content
 import { C, mix, rng } from './world'
 import { JUNCTIONS, makePath, PAVE, poseAt, ROUTES, walkRoute, WORK_LOOPS, type P2, type Path, type Pose } from './layout'
 import type { VehicleKind } from './prefabs'
+import { AIRSIDE_DOORS, lookOfDistrict, type Look } from './looks'
 
 export interface Circle { x: number; z: number; r: number }
 
@@ -64,6 +65,9 @@ export interface Walker {
   night: boolean
   color: string
   skin: string
+  look: Look
+  /** goes beyond the airside boundary, so wears hi-vis */
+  airside: boolean
   dwellA: number
   dwellB: number
   d: number
@@ -499,13 +503,13 @@ export function ambientWalkers(count: number): Walker[] {
   }
   // people working in the open, around the aircraft
   for (const w of WORK_LOOPS) {
-    list.push(start({ path: makePath(w.path as P2[], { radius: 0.6, step: 0.3, closed: !!w.closed }), speed: 0.7 + r() * 0.4, dwellA: 4 + r() * 6, dwellB: 4 + r() * 7, color: w.color, skin: skin(), stay: true, closed: !!w.closed, night: true }, r() * 60))
+    list.push(start({ path: makePath(w.path as P2[], { radius: 0.6, step: 0.3, closed: !!w.closed }), speed: 0.7 + r() * 0.4, dwellA: 4 + r() * 6, dwellB: 4 + r() * 7, color: w.color, skin: skin(), look: w.color === '#d9a72c' ? 'certifier' : w.color === '#3e7c76' ? 'auditor' : 'mechanic', airside: true, stay: true, closed: !!w.closed, night: true }, r() * 60))
   }
   const trips: [string, string][] = []
   for (const [from, tos, weight] of TRIPS) for (let k = 0; k < weight; k++) for (const to of tos) trips.push([from, to])
   for (let i = 0; list.length < count; i++) {
     const [a, b] = trips[(i * 7) % trips.length]
-    list.push(start({ path: walkRoute(a, b, (r() - 0.5) * 0.5), speed: 1.45 + r() * 0.7, dwellA: 5 + r() * 34, dwellB: 6 + r() * 30, color: tone(a), skin: skin(), stay: false, closed: false, night: i % 3 === 0 }, r() * 400))
+    list.push(start({ path: walkRoute(a, b, (r() - 0.5) * 0.5), speed: 1.45 + r() * 0.7, dwellA: 5 + r() * 34, dwellB: 6 + r() * 30, color: tone(a), skin: skin(), look: lookOfDistrict(a, r), airside: AIRSIDE_DOORS.has(a) || AIRSIDE_DOORS.has(b), stay: false, closed: false, night: i % 3 === 0 }, r() * 400))
   }
   return list
 }

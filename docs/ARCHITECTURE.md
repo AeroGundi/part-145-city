@@ -97,6 +97,8 @@ the road network. Buildings are domains, never single regulations; points attach
 | `Districts.tsx` | cut-away opening (roof lifts, walls drop) and click targets |
 | `layout.ts` | paths, pavements and zebra crossings derived from the road model, traffic routes |
 | `traffic.ts` | vehicles and pedestrians that see each other: fixed-step, seeded simulation (following, give-way at junctions, keep-clear boxes, yielding to people and aircraft); covered by `traffic.test.ts` |
+| `looks.ts` | who wears what (role → outfit) and the airside boundary: only people with a reason go beyond it, and they wear hi-vis |
+| `emblems.ts` | one signature object per room, a memory aid placed beside the anchors |
 | `Life.tsx`, `aircraft.ts` | draws people, vehicles, aircraft, clouds; aircraft and clouds are closed-form functions of the clock |
 | `Overlays.tsx`, `Labels.tsx` | pins, connection arcs, information-security layer; DOM labels projected each frame |
 | `CityCanvas.tsx` | light, day/night, camera flights (GSAP), keyboard control |

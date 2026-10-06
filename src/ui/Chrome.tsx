@@ -39,9 +39,26 @@ export function Legend() {
         return <li key={c}><button onClick={() => d && goPlace(d.id)}><i style={{ background: CATEGORY_COLOR[c] }}><CatIcon cat={c} size={11} /></i>{CATEGORY_LABEL[c]}</button></li>
       })}</ul>
       <p><b>Section A</b> inside the fence — the organisation.<br /><b>Section B</b> across the road — the competent authority.</p>
+      <p className="legend-who"><b>Who is who</b> <em>this app’s colour code, not a requirement</em></p>
+      <ul className="legend-looks">
+        {WHO.map(([c1, c2, label]) => <li key={label}><i style={{ background: c1 }} /><i style={{ background: c2 }} />{label}</li>)}
+      </ul>
+      <p><b>Red line</b> — airside boundary: nobody beyond it without hi-vis.</p>
     </div>
   )
 }
+
+const WHO: [string, string, string][] = [
+  ['#e6e62a', '#f6f5f1', 'Certifying staff — yellow vest, white helmet, green stamp'],
+  ['#f26a1b', '#e0a92b', 'Support staff & mechanics — orange vest'],
+  ['#f4f4f0', '#9fd4f0', 'NDT & specialised services — white coat'],
+  ['#1f2733', '#c0392b', 'Accountable manager & nominated persons — suit and tie'],
+  ['#3e7c76', '#f8f6ef', 'Compliance monitoring — teal jacket, clipboard'],
+  ['#d2573f', '#f6d7a0', 'Safety — coral jacket'],
+  ['#1b2a4d', '#e3c15a', 'Competent authority — navy uniform, cap, gold badge'],
+  ['#8d8a84', '#3c6fb5', 'Contracted organisation — grey overalls, blue helmet'],
+  ['#b6e03a', '#dfe3e8', 'Anyone else airside — lime visitor vest'],
+]
 
 export function DatasetBadge() {
   const set = useApp((s) => s.set)

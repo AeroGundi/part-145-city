@@ -4,6 +4,7 @@
  * Everything is a pure function of the city model, so the world is deterministic.
  */
 import { DISTRICTS, DISTRICT_BY_ID, ROADS, roomRects, type District } from '../content/city'
+import { AIRSIDE_DOORS, AIRSIDE_Z } from './looks'
 
 export type P2 = [number, number]
 
@@ -92,6 +93,8 @@ function doorOf(d: District): P2 {
     case 'moe': return [cx + 1.5, front - 0.5]
     case 'stores': return [cx - w / 2 - 0.6, front + 2]
     case 'authority': return [cx, front - 3.6]
+    // these two face the apron; their staff entrance is on the landside, at the back
+    case 'production-control': case 'workshops': return [cx, cz + dp / 2 + 0.5]
     case 'documents': return [cx, front - 1.0]
     default: return [cx, front - 0.5]
   }
@@ -168,7 +171,7 @@ const adj = new Map<string, { to: string; w: number }[]>()
   ZEBRAS.push(...zebras.values())
 }
 
-function shortest(from: P2, to: P2): P2[] {
+function shortest(from: P2, to: P2, airside: boolean): P2[] {
   const src = key(from), dst = key(to)
   const best = new Map<string, number>([[src, 0]])
   const prev = new Map<string, string>()
@@ -179,6 +182,8 @@ function shortest(from: P2, to: P2): P2[] {
     if (cur === null || cur === dst) break
     done.add(cur)
     for (const e of adj.get(cur) ?? []) {
+      // without an airside pass the pavements beyond the boundary do not exist
+      if (!airside && nodes.get(e.to)![1] < AIRSIDE_Z) continue
       const nd = cd + e.w
       if (nd < (best.get(e.to) ?? Infinity)) { best.set(e.to, nd); prev.set(e.to, cur) }
     }
@@ -191,7 +196,8 @@ function shortest(from: P2, to: P2): P2[] {
 
 /** Walking route between two districts: door → pavement → along the pavements and over the crossings → door. `lane` spreads people across the pavement. */
 export function walkRoute(from: string, to: string, lane = 0): Path {
-  const pts: P2[] = [DOORS[from], ...shortest(FEET[from], FEET[to]), DOORS[to]]
+  const airside = AIRSIDE_DOORS.has(from) || AIRSIDE_DOORS.has(to)
+  const pts: P2[] = [DOORS[from], ...shortest(FEET[from], FEET[to], airside), DOORS[to]]
   return makePath(pts, { radius: 0.5, lane, taper: 1.5, step: 0.4 })
 }
 
