@@ -14,6 +14,9 @@
  *   navy uniform, peaked cap, gold badge     the competent authority
  *   grey overalls, blue helmet               the contracted / subcontracted organisation
  *   lime vest over ordinary clothes          anyone else who is airside: no vest, no entry
+ *
+ * Hi-vis is for the airside: people walking put it on at the gate and take it off
+ * again when they come back landside.
  */
 import { C } from './world'
 

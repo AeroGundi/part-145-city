@@ -17,7 +17,7 @@ import { vehicle } from './prefabs'
 import { anchorSpots, FLOOR_Y } from './buildings'
 import { HANGAR_AC, STAND1 } from './layout'
 import { ambientCars, ambientWalkers, Traffic } from './traffic'
-import { LOOK_OF_ROLE, outfit, type Look, type Outfit } from './looks'
+import { AIRSIDE_Z, LOOK_OF_ROLE, outfit, type Look, type Outfit } from './looks'
 import { AIRCRAFT_MAT, aircraftGeometry, flightPose, groundObstacles, pushTug, type FlightPose } from './aircraft'
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0)
@@ -80,7 +80,7 @@ function People({ traffic }: { traffic: Traffic }) {
       part.matrixWorld.multiplyMatrices(root.matrixWorld, part.matrix)
       mesh.setMatrixAt(k, part.matrixWorld)
     }
-    const draw = (i: number, x: number, y: number, z: number, h: number, scale: number, stride: number, sway: number) => {
+    const draw = (i: number, x: number, y: number, z: number, h: number, scale: number, stride: number, sway: number, hiVis = true) => {
       const f = figures[i]
       if (scale <= 0.01) {
         for (let k = 0; k < 4; k++) limbs.setMatrixAt(i * 4 + k, ZERO)
@@ -101,7 +101,7 @@ function People({ traffic }: { traffic: Traffic }) {
       put(limbs, i * 4 + 3, 0.225, 0.8, 0, 0.09, 0.36, 0.11, holds ? -1.15 : stride * 0.55)
       const b = i * SLOTS
       put(boxes, b, 0, 0.635, 0, 0.36, 0.37, 0.2)
-      if (o.vest) { put(boxes, b + 1, 0, 0.65, 0, 0.385, 0.31, 0.225); put(boxes, b + 2, 0, 0.58, 0, 0.395, 0.055, 0.235) }
+      if (o.vest && hiVis) { put(boxes, b + 1, 0, 0.65, 0, 0.385, 0.31, 0.225); put(boxes, b + 2, 0, 0.58, 0, 0.395, 0.055, 0.235) }
       else { boxes.setMatrixAt(b + 1, ZERO); boxes.setMatrixAt(b + 2, ZERO) }
       if (o.item?.kind === 'tie') put(boxes, b + 3, 0, 0.67, 0.106, 0.05, 0.24, 0.012)
       else if (o.item?.kind === 'clipboard') put(boxes, b + 3, 0.2, 0.62, 0.3, 0.2, 0.26, 0.02, -0.5)
@@ -119,7 +119,7 @@ function People({ traffic }: { traffic: Traffic }) {
       const scale = w.scale * (w.night ? 1 : 1 - quiet)
       // the stride follows the distance walked, so feet do not slide
       const stride = w.moving ? Math.sin(w.d * 4.4 + i) : 0
-      draw(i, w.pose.x, 0.07, w.pose.z, w.pose.h + (w.moving ? 0 : Math.sin(t * 0.6 + i) * 0.4), scale, stride, 0)
+      draw(i, w.pose.x, 0.07, w.pose.z, w.pose.h + (w.moving ? 0 : Math.sin(t * 0.6 + i) * 0.4), scale, stride, 0, w.pose.z < AIRSIDE_Z + 0.6)
     }
     for (let k = 0; k < spots.length; k++) {
       const s = spots[k], i = walkers.length + k

@@ -43,7 +43,7 @@ export function Legend() {
       <ul className="legend-looks">
         {WHO.map(([c1, c2, label]) => <li key={label}><i style={{ background: c1 }} /><i style={{ background: c2 }} />{label}</li>)}
       </ul>
-      <p><b>Red line</b> — airside boundary: nobody beyond it without hi-vis.</p>
+      <p><b>Red line</b> — airside boundary: nobody beyond it without hi-vis; vests come off again landside.</p>
     </div>
   )
 }
