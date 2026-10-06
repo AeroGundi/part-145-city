@@ -158,6 +158,34 @@ const KEYS: Key[] = [
   [FLIGHT_PERIOD, -200, 36, rz, W + 2 * Math.PI, -0.2, 0],
 ]
 
+/** Where the pushback tug is: parked beside stand 2, or at the visitor's nose while it pushes. */
+export function pushTug(time: number, out: { x: number; z: number; h: number }) {
+  const p = flightPose(time, _fp)
+  const park: [number, number] = [STAND2[0] + 8.6, STAND2[1] + 7.6]
+  const sm = (a: number, b: number, v: number) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t) }
+  const k = p.t < 100 ? 0 : p.t < 108 ? sm(100, 108, p.t) : p.t < 124 ? 1 : p.t < 131 ? 1 - sm(124, 131, p.t) : 0
+  const nx = p.x + Math.sin(p.h) * 8.4, nz = p.z + Math.cos(p.h) * 8.4
+  out.x = park[0] + (nx - park[0]) * k; out.z = park[1] + (nz - park[1]) * k
+  out.h = k > 0.5 ? p.h + Math.PI : -Math.PI / 2
+  return out
+}
+
+/** Ground footprint of the visiting aircraft and its tug, now and a few seconds ahead — for the traffic to keep clear of. */
+export function groundObstacles(time: number): { x: number; z: number; r: number }[] {
+  const out: { x: number; z: number; r: number }[] = []
+  for (const dt of [0, 1.5, 3, 4.5, 6]) {
+    const p = flightPose(time + dt, _fp)
+    if (p.y < 4 && p.z > TAXIWAY.z - 6) {
+      const s = Math.sin(p.h), c = Math.cos(p.h)
+      for (let o = -8; o <= 8.4; o += 2) out.push({ x: p.x + s * o, z: p.z + c * o, r: 1.5 })
+      for (const w of [-6.4, -4.2, -2.1, 2.1, 4.2, 6.4]) out.push({ x: p.x + c * w - s * 0.9, z: p.z - s * w - c * 0.9, r: 1.6 })
+    }
+    if (dt <= 3) { const g = pushTug(time + dt, _tug); out.push({ x: g.x, z: g.z, r: 0.95 }) }
+  }
+  return out
+}
+const _tug = { x: 0, z: 0, h: 0 }
+
 export interface FlightPose { x: number; y: number; z: number; h: number; pitch: number; phase: 'air' | 'runway' | 'taxi' | 'parked' | 'push'; t: number }
 
 export function flightPose(time: number, out: FlightPose): FlightPose {
@@ -178,3 +206,4 @@ export function flightPose(time: number, out: FlightPose): FlightPose {
   out.phase = t < 13 || t >= 169 ? 'air' : t < 23 || t >= 161 ? 'runway' : t >= 59 && t < 108 ? 'parked' : t >= 108 && t < 129 ? 'push' : 'taxi'
   return out
 }
+const _fp: FlightPose = { x: 0, y: 0, z: 0, h: 0, pitch: 0, phase: 'air', t: 0 }

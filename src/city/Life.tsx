@@ -1,200 +1,156 @@
 /**
  * The living world: people, vehicles, aircraft and clouds.
  *
- * Nothing here is simulated. Every position is a closed-form function of the
- * ambient clock (`world.t`) and a seeded PRNG, so the world is deterministic,
+ * Aircraft and clouds are closed-form functions of the ambient clock; people and
+ * vehicles are stepped by `traffic.ts` (fixed time step, seeded), so the world is deterministic,
  * costs a few hundred matrix writes per frame, and freezes cleanly when the
  * user turns animation off.
  */
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { CATEGORY_COLOR, DISTRICTS, DISTRICT_BY_ID, type Category } from '../content/city'
+import { CATEGORY_COLOR, DISTRICTS } from '../content/city'
 import { useApp } from '../store/app'
 import { C, lerp, mix, rng, smooth, world } from './world'
-import { GEO, MAT, type Part } from './parts'
-import { vehicle, type VehicleKind } from './prefabs'
+import { GEO, MAT } from './parts'
+import { vehicle } from './prefabs'
 import { anchorSpots, FLOOR_Y } from './buildings'
-import { HANGAR_AC, makePath, poseAt, ROUTES, STAND1, STAND2, walkRoute, WORK_LOOPS, type Path, type Pose } from './layout'
-import { AIRCRAFT_MAT, aircraftGeometry, flightPose, type FlightPose } from './aircraft'
+import { HANGAR_AC, STAND1 } from './layout'
+import { ambientCars, ambientWalkers, HIVIS, Traffic } from './traffic'
+import { AIRCRAFT_MAT, aircraftGeometry, flightPose, groundObstacles, pushTug, type FlightPose } from './aircraft'
 
-const BODY = new THREE.CapsuleGeometry(0.17, 0.4, 3, 8).translate(0, 0.39, 0)
-const HEAD = new THREE.SphereGeometry(0.135, 10, 8).translate(0, 0.9, 0)
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0)
 const _o = new THREE.Object3D()
 const _c = new THREE.Color()
-const _pose: Pose = { x: 0, z: 0, h: 0 }
 
-/** who walks where — the colour of a walker is the colour of the district they belong to */
-const TRIPS: [string, string[], number][] = [
-  ['compliance', ['hangar', 'stores', 'workshops', 'technical-library', 'training', 'production-control', 'records', 'moe', 'contractor', 'apron'], 1],
-  ['hangar', ['stores', 'technical-library', 'production-control', 'training', 'workshops', 'apron', 'records'], 3],
-  ['safety', ['hangar', 'apron', 'hq', 'workshops', 'training'], 1],
-  ['authority', ['hq', 'hangar', 'compliance', 'moe', 'stores'], 1],
-  ['hq', ['hangar', 'safety', 'compliance', 'production-control', 'training', 'moe'], 1],
-  ['stores', ['hangar', 'workshops', 'apron'], 2],
-  ['production-control', ['hangar', 'hq', 'technical-library', 'stores'], 1],
-  ['technical-library', ['hangar', 'workshops', 'production-control'], 1],
-  ['training', ['hangar', 'workshops', 'hq', 'technical-library', 'documents'], 2],
-  ['records', ['hangar', 'hq', 'training'], 1],
-  ['moe', ['hq', 'compliance', 'authority'], 1],
-  ['contractor', ['hangar', 'workshops', 'hq'], 1],
-  ['workshops', ['stores', 'hangar', 'technical-library'], 2],
-]
-const HIVIS: Partial<Record<Category, string>> = { maintenance: C.orange, aircraft: C.yellow, components: '#93a35a' }
+// ───────────────────────────── people ─────────────────────────────
+// A figure is a torso, two legs and two arms that swing with the stride, a head and
+// either hair or a hard hat; people who work around aircraft wear a hi-vis band.
 
-interface Walker { path: Path; speed: number; dwellA: number; dwellB: number; off: number; color: string; skin: string; stay: boolean; closed: boolean; night: boolean }
+/** unit box hanging from its top face, so a limb rotates about the hip or shoulder */
+const LIMB = new THREE.BoxGeometry(1, 1, 1).translate(0, -0.5, 0)
+const HEAD = new THREE.SphereGeometry(0.5, 12, 9)
+const CAP = new THREE.SphereGeometry(0.5, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.52)
+const HAIR = ['#2b2118', '#4a3524', '#7a5a3a', '#1c1c1e', '#b9b2a6', '#8c4a2f']
+const TROUSERS = ['#2f3a4a', '#3b4652', '#4a4f57', '#27303c', '#5a5348']
 
-function makeWalkers(count: number): Walker[] {
-  const r = rng(1321)
-  const list: Walker[] = []
-  const cat = (id: string) => DISTRICT_BY_ID[id].category
-  const tone = (id: string) => mix(HIVIS[cat(id)] ?? CATEGORY_COLOR[cat(id)], '#ffffff', 0.08 + r() * 0.12)
-  // people working in the open, around the aircraft
-  for (const w of WORK_LOOPS) {
-    list.push({ path: makePath(w.path, { radius: 0.6, step: 0.3, closed: !!w.closed }), speed: 0.7 + r() * 0.4, dwellA: 4 + r() * 6, dwellB: 4 + r() * 7, off: r() * 60, color: w.color, skin: C.skin[Math.floor(r() * C.skin.length)], stay: true, closed: !!w.closed, night: true })
-  }
-  const trips: [string, string][] = []
-  for (const [from, tos, weight] of TRIPS) for (let k = 0; k < weight; k++) for (const to of tos) trips.push([from, to])
-  for (let i = 0; list.length < count; i++) {
-    const [a, b] = trips[(i * 7) % trips.length]
-    list.push({ path: walkRoute(a, b), speed: 1.45 + r() * 0.7, dwellA: 5 + r() * 34, dwellB: 6 + r() * 30, off: r() * 400, color: tone(a), skin: C.skin[Math.floor(r() * C.skin.length)], stay: false, closed: false, night: i % 3 === 0 })
-  }
-  return list
+interface Figure { shirt: string; legs: string; skin: string; cap: string; helmet: boolean; hivis: boolean; tall: number }
+
+function figure(r: () => number, shirt: string, skin: string, site: boolean): Figure {
+  return { shirt, skin, legs: site ? '#2f3a4a' : TROUSERS[Math.floor(r() * TROUSERS.length)], cap: site ? (r() < 0.6 ? C.white : C.yellow) : HAIR[Math.floor(r() * HAIR.length)], helmet: site, hivis: site, tall: 0.94 + r() * 0.14 }
 }
 
-function People({ count }: { count: number }) {
-  const { walkers, spots, bodies, heads } = useMemo(() => {
-    const walkers = makeWalkers(count)
+function People({ traffic }: { traffic: Traffic }) {
+  const { spots, figures, limbs, boxes, heads, caps } = useMemo(() => {
+    const walkers = traffic.walkers
     // the characters: one figure for every role anchor in the city
-    const spots = DISTRICTS.flatMap((d) => anchorSpots(d, FLOOR_Y[d.id]).filter((s) => s.role).map((s) => ({ ...s, color: mix(HIVIS[d.category] ?? CATEGORY_COLOR[d.category], '#ffffff', 0.1) })))
+    const spots = DISTRICTS.flatMap((d) => anchorSpots(d, FLOOR_Y[d.id]).filter((s) => s.role).map((s) => ({ ...s, cat: d.category })))
     const n = walkers.length + spots.length
-    const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 })
-    const bodies = new THREE.InstancedMesh(BODY, mat, n)
-    const heads = new THREE.InstancedMesh(HEAD, mat, n)
     const r = rng(66)
-    walkers.forEach((w, i) => { bodies.setColorAt(i, _c.set(w.color)); heads.setColorAt(i, _c.set(w.skin)) })
-    spots.forEach((s, k) => { bodies.setColorAt(walkers.length + k, _c.set(s.color)); heads.setColorAt(walkers.length + k, _c.set(C.skin[Math.floor(r() * C.skin.length)])) })
-    for (const m of [bodies, heads]) { m.castShadow = true; m.frustumCulled = false; m.raycast = () => {}; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage) }
-    return { walkers, spots, bodies, heads }
-  }, [count])
-  useEffect(() => () => { bodies.dispose(); heads.dispose(); (bodies.material as THREE.Material).dispose() }, [bodies, heads])
+    const SITE = new Set(Object.values(HIVIS))
+    const figures: Figure[] = [
+      ...walkers.map((w) => figure(r, w.color, w.skin, w.stay || SITE.has(w.color) || w.color === C.orange || w.color === C.yellow)),
+      ...spots.map((s) => figure(r, mix(HIVIS[s.cat] ?? CATEGORY_COLOR[s.cat], '#ffffff', 0.1), C.skin[Math.floor(r() * C.skin.length)], !!HIVIS[s.cat])),
+    ]
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 })
+    const limbs = new THREE.InstancedMesh(LIMB, mat, n * 4)
+    const boxes = new THREE.InstancedMesh(GEO.box, mat, n * 2)
+    const heads = new THREE.InstancedMesh(HEAD, mat, n)
+    const caps = new THREE.InstancedMesh(CAP, mat, n)
+    figures.forEach((f, i) => {
+      limbs.setColorAt(i * 4, _c.set(f.legs)); limbs.setColorAt(i * 4 + 1, _c.set(f.legs))
+      limbs.setColorAt(i * 4 + 2, _c.set(f.shirt)); limbs.setColorAt(i * 4 + 3, _c.set(f.shirt))
+      boxes.setColorAt(i * 2, _c.set(f.shirt)); boxes.setColorAt(i * 2 + 1, _c.set('#eef0e4'))
+      heads.setColorAt(i, _c.set(f.skin)); caps.setColorAt(i, _c.set(f.cap))
+    })
+    for (const m of [limbs, boxes, heads, caps]) { m.castShadow = true; m.frustumCulled = false; m.raycast = () => {}; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage) }
+    return { spots, figures, limbs, boxes, heads, caps }
+  }, [traffic])
+  useEffect(() => () => { limbs.dispose(); boxes.dispose(); heads.dispose(); caps.dispose(); (limbs.material as THREE.Material).dispose() }, [limbs, boxes, heads, caps])
   const camera = useThree((s) => s.camera)
+  const root = useMemo(() => new THREE.Object3D(), [])
+  const part = useMemo(() => { const c = new THREE.Object3D(); root.add(c); return c }, [root])
 
   useFrame(() => {
     const t = world.t
-    const quiet = smooth(0.35, 0.75, world.night)
+    const walkers = traffic.walkers
+    const quiet = traffic.quiet
     const focus = useApp.getState().focus
+    const put = (mesh: THREE.InstancedMesh, k: number, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0) => {
+      part.position.set(x, y, z); part.rotation.set(rx, 0, 0); part.scale.set(sx, sy, sz); part.updateMatrix()
+      part.matrixWorld.multiplyMatrices(root.matrixWorld, part.matrix)
+      mesh.setMatrixAt(k, part.matrixWorld)
+    }
+    const draw = (i: number, x: number, y: number, z: number, h: number, scale: number, stride: number, sway: number) => {
+      const f = figures[i]
+      if (scale <= 0.01) {
+        for (let k = 0; k < 4; k++) limbs.setMatrixAt(i * 4 + k, ZERO)
+        boxes.setMatrixAt(i * 2, ZERO); boxes.setMatrixAt(i * 2 + 1, ZERO); heads.setMatrixAt(i, ZERO); caps.setMatrixAt(i, ZERO)
+        return
+      }
+      root.position.set(x, y + Math.abs(stride) * 0.03, z)
+      root.rotation.set(0, h, sway)
+      root.scale.setScalar(scale * f.tall)
+      root.updateMatrixWorld()
+      put(limbs, i * 4, -0.085, 0.46, 0, 0.13, 0.46, 0.15, stride * 0.7)
+      put(limbs, i * 4 + 1, 0.085, 0.46, 0, 0.13, 0.46, 0.15, -stride * 0.7)
+      put(limbs, i * 4 + 2, -0.225, 0.8, 0, 0.09, 0.36, 0.11, -stride * 0.55)
+      put(limbs, i * 4 + 3, 0.225, 0.8, 0, 0.09, 0.36, 0.11, stride * 0.55)
+      put(boxes, i * 2, 0, 0.635, 0, 0.36, 0.37, 0.2)
+      if (f.hivis) put(boxes, i * 2 + 1, 0, 0.6, 0, 0.375, 0.07, 0.215)
+      else boxes.setMatrixAt(i * 2 + 1, ZERO)
+      put(heads, i, 0, 0.945, 0, 0.23, 0.25, 0.23)
+      put(caps, i, 0, f.helmet ? 0.975 : 0.955, f.helmet ? 0.01 : -0.012, f.helmet ? 0.3 : 0.25, f.helmet ? 0.22 : 0.26, f.helmet ? 0.32 : 0.25)
+    }
     for (let i = 0; i < walkers.length; i++) {
       const w = walkers[i]
-      let scale = 1, d = 0, moving = true, flip = false
-      if (w.closed) d = (w.off + t) * w.speed
-      else {
-        const travel = w.path.len / w.speed
-        const period = 2 * travel + w.dwellA + w.dwellB
-        const u = (t + w.off) % period
-        if (u < travel) d = u * w.speed
-        else if (u < travel + w.dwellB) { d = w.path.len; moving = false; scale = w.stay ? 1 : 0 }
-        else if (u < 2 * travel + w.dwellB) { d = w.path.len - (u - travel - w.dwellB) * w.speed; flip = true }
-        else { d = 0; moving = false; scale = w.stay ? 1 : 0 }
-        if (!w.stay && scale) scale = Math.min(1, d / 0.8, (w.path.len - d) / 0.8)
-      }
-      if (!w.night) scale *= 1 - quiet
-      if (scale <= 0.01) { bodies.setMatrixAt(i, ZERO); heads.setMatrixAt(i, ZERO); continue }
-      poseAt(w.path, d, _pose)
-      _o.position.set(_pose.x, moving ? Math.abs(Math.sin(t * 7 + i)) * 0.045 : 0, _pose.z)
-      _o.rotation.set(0, _pose.h + (flip ? Math.PI : 0) + (moving ? 0 : Math.sin(t * 0.6 + i) * 0.5), moving ? Math.sin(t * 7 + i) * 0.05 : 0)
-      _o.scale.setScalar(scale)
-      _o.updateMatrix()
-      bodies.setMatrixAt(i, _o.matrix); heads.setMatrixAt(i, _o.matrix)
+      const scale = w.scale * (w.night ? 1 : 1 - quiet)
+      // the stride follows the distance walked, so feet do not slide
+      const stride = w.moving ? Math.sin(w.d * 4.4 + i) : 0
+      draw(i, w.pose.x, 0.07, w.pose.z, w.pose.h + (w.moving ? 0 : Math.sin(t * 0.6 + i) * 0.4), scale, stride, 0)
     }
     for (let k = 0; k < spots.length; k++) {
       const s = spots[k], i = walkers.length + k
       const hot = focus === s.place
       // the role a requirement lives with turns to face the viewer
       const face = hot ? Math.atan2(camera.position.x - s.x, camera.position.z - s.z) : Math.PI + Math.sin(k * 12.9) * 0.5 + Math.sin(t * 0.4 + k) * 0.25
-      _o.position.set(s.x - 0.75 * s.scale, s.y + (hot ? Math.abs(Math.sin(t * 3)) * 0.06 : 0), s.z - 0.3 * s.scale)
-      _o.rotation.set(0, face, 0)
-      _o.scale.setScalar(Math.max(0.8, s.scale) * (hot ? 1.25 : 1))
-      _o.updateMatrix()
-      bodies.setMatrixAt(i, _o.matrix); heads.setMatrixAt(i, _o.matrix)
+      draw(i, s.x - 0.75 * s.scale, s.y + (hot ? Math.abs(Math.sin(t * 3)) * 0.06 : 0), s.z - 0.3 * s.scale, face, Math.max(0.8, s.scale) * (hot ? 1.25 : 1), Math.sin(t * 1.3 + k) * 0.12, 0)
     }
-    bodies.instanceMatrix.needsUpdate = true
-    heads.instanceMatrix.needsUpdate = true
+    for (const m of [limbs, boxes, heads, caps]) m.instanceMatrix.needsUpdate = true
   })
-  return <><primitive object={bodies} /><primitive object={heads} /></>
+  return <><primitive object={limbs} /><primitive object={boxes} /><primitive object={heads} /><primitive object={caps} /></>
 }
 
 // ───────────────────────────── vehicles ─────────────────────────────
 
-interface Mover { parts: Part[]; path: Path; speed: number; off: number; mode: 'loop' | 'through' | 'shuttle'; dwell?: number; first: number }
-
-function makeMovers(low: boolean): { movers: Mover[]; total: number } {
-  const r = rng(2014)
-  const movers: Mover[] = []
-  let total = 0
-  const add = (kind: VehicleKind, color: string, path: Path, speed: number, off: number, mode: Mover['mode'] = 'loop', dwell?: number) => {
-    const parts = vehicle(kind, color)
-    movers.push({ parts, path, speed, off, mode, dwell, first: total })
-    total += parts.length
-  }
-  const cols = ['#c9ced3', C.navy, '#8a3f34', '#e9e5da', '#5d7f9c', '#3b4652', '#b7c2ab']
-  const nPublic = low ? 2 : 4
-  for (let i = 0; i < nPublic; i++) {
-    add(i === 1 ? 'truck' : 'car', cols[Math.floor(r() * cols.length)], ROUTES.publicEast, 5 + r() * 2, (i / nPublic) * ROUTES.publicEast.len + r() * 30, 'through')
-    add(i === 2 ? 'van' : 'car', cols[Math.floor(r() * cols.length)], ROUTES.publicWest, 5 + r() * 2, (i / nPublic) * ROUTES.publicWest.len + r() * 30, 'through')
-  }
-  add('bus', C.white, ROUTES.campusCw, 3.6, 20)
-  add('van', C.white, ROUTES.campusCcw, 4.2, 90)
-  add('forklift', C.orange, ROUTES.hangarBlock, 2.4, 0)
-  add('forklift', C.yellow, ROUTES.workshopBlock, 2.2, 55)
-  if (!low) { add('car', '#e9e5da', ROUTES.campusCw, 4.6, 140); add('forklift', C.orange, ROUTES.hangarBlock, 2.6, 70) }
-  // baggage / parts train on the apron
-  add('tug', C.yellow, ROUTES.apronLoop, 3.0, 0)
-  add('cart', C.blue, ROUTES.apronLoop, 3.0, -2.5)
-  add('cart', C.blue, ROUTES.apronLoop, 3.0, -4.4)
-  add('fuel', C.white, ROUTES.apronLoop, 2.2, 60)
-  add('van', C.white, ROUTES.lineVan, 2.6, 4, 'shuttle', 22)
-  return { movers, total }
-}
-
-function Vehicles({ low }: { low: boolean }) {
-  const { movers, mesh } = useMemo(() => {
-    const { movers, total } = makeMovers(low)
+function Vehicles({ traffic }: { traffic: Traffic }) {
+  const { units, mesh } = useMemo(() => {
+    const units = traffic.cars.flatMap((c) => c.units.map((u) => ({ u, parts: vehicle(u.kind, u.color), first: 0 })))
+    let total = 0
+    for (const x of units) { x.first = total; total += x.parts.length }
     const mesh = new THREE.InstancedMesh(GEO.box, MAT.solid, total)
-    for (const m of movers) m.parts.forEach((p, k) => mesh.setColorAt(m.first + k, _c.set(p.c)))
+    for (const x of units) x.parts.forEach((p, k) => mesh.setColorAt(x.first + k, _c.set(p.c)))
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.raycast = () => {}
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    return { movers, mesh }
-  }, [low])
+    return { units, mesh }
+  }, [traffic])
   useEffect(() => () => { mesh.dispose() }, [mesh])
   const root = useMemo(() => new THREE.Object3D(), [])
   const child = useMemo(() => { const c = new THREE.Object3D(); root.add(c); return c }, [root])
 
   useFrame(() => {
-    const t = world.t
-    for (const m of movers) {
-      let d: number, turn = 0
-      if (m.mode === 'shuttle') {
-        const travel = m.path.len / m.speed, dwell = m.dwell ?? 10, period = 2 * (travel + dwell)
-        const u = (t + m.off) % period
-        if (u < travel) d = u * m.speed
-        else if (u < travel + dwell) { d = m.path.len; turn = smooth(0, 3, u - travel) * Math.PI }
-        else if (u < 2 * travel + dwell) { d = m.path.len - (u - travel - dwell) * m.speed; turn = Math.PI }
-        else { d = 0; turn = Math.PI + smooth(0, 3, u - 2 * travel - dwell) * Math.PI }
-      } else d = m.off + t * m.speed
-      poseAt(m.path, m.mode === 'through' ? ((d % m.path.len) + m.path.len) % m.path.len : d, _pose)
-      root.position.set(_pose.x, 0.07, _pose.z)
-      root.rotation.set(0, _pose.h + turn, 0)
+    for (const x of units) {
+      root.position.set(x.u.pose.x, 0.07, x.u.pose.z)
+      root.rotation.set(0, x.u.pose.h, 0)
       root.updateMatrixWorld()
-      for (let k = 0; k < m.parts.length; k++) {
-        const p = m.parts[k]
+      for (let k = 0; k < x.parts.length; k++) {
+        const p = x.parts[k]
         child.position.set(p.p[0], p.p[1], p.p[2])
         child.rotation.set(p.r?.[0] ?? 0, p.r?.[1] ?? 0, p.r?.[2] ?? 0, 'YXZ')
         child.scale.set(p.s[0], p.s[1], p.s[2])
         child.updateMatrix()
         child.matrixWorld.multiplyMatrices(root.matrixWorld, child.matrix)
-        mesh.setMatrixAt(m.first + k, child.matrixWorld)
+        mesh.setMatrixAt(x.first + k, child.matrixWorld)
       }
     }
     mesh.instanceMatrix.needsUpdate = true
@@ -232,7 +188,7 @@ function Aircraft() {
   const tug = useRef<THREE.Group>(null!)
   const tugParts = useMemo(() => vehicle('tug', C.white), [])
   const pose = useMemo<FlightPose>(() => ({ x: 0, y: 0, z: 0, h: 0, pitch: 0, phase: 'air', t: 0 }), [])
-  const park: [number, number] = [STAND2[0] + 8.6, STAND2[1] + 7.6]
+  const tugPose = useMemo(() => ({ x: 0, z: 0, h: 0 }), [])
 
   useFrame(() => {
     const t = world.t + 30
@@ -248,10 +204,9 @@ function Aircraft() {
     })
     standLights.current?.children.forEach((c) => { c.visible = c.name === 'nav' && world.night > 0.4 })
     // the pushback tug meets the nose, pushes, and returns to its bay
-    const k = p.t < 100 ? 0 : p.t < 108 ? smooth(100, 108, p.t) : p.t < 124 ? 1 : p.t < 131 ? 1 - smooth(124, 131, p.t) : 0
-    const nx = p.x + Math.sin(p.h) * 8.4, nz = p.z + Math.cos(p.h) * 8.4
-    tug.current.position.set(park[0] + (nx - park[0]) * k, 0.1, park[1] + (nz - park[1]) * k)
-    tug.current.rotation.y = k > 0.5 ? p.h + Math.PI : -Math.PI / 2
+    const tg = pushTug(t, tugPose)
+    tug.current.position.set(tg.x, 0.1, tg.z)
+    tug.current.rotation.y = tg.h
   })
 
   return (
@@ -322,10 +277,23 @@ function Clouds() {
 
 export function Life() {
   const low = useApp((s) => s.settings.lowPower)
+  const traffic = useMemo(() => {
+    const T = new Traffic(ambientCars(low), ambientWalkers(low ? 46 : 150))
+    // let everyone get up to speed before the first frame
+    for (let i = 0; i < 40; i++) T.advance(0.25, () => groundObstacles(world.t + 30))
+    return T
+  }, [low])
+  const last = useRef(world.t)
+  useFrame(() => {
+    const dt = world.t - last.current
+    last.current = world.t
+    traffic.quiet = smooth(0.35, 0.75, world.night)
+    if (dt > 0) traffic.advance(dt, () => groundObstacles(world.t + 30))
+  })
   return (
     <>
-      <People count={low ? 46 : 150} />
-      <Vehicles low={low} />
+      <People traffic={traffic} />
+      <Vehicles traffic={traffic} />
       <Aircraft />
       {!low && <Clouds />}
     </>

@@ -99,18 +99,30 @@ function doorOf(d: District): P2 {
 export const DOORS: Record<string, P2> = Object.fromEntries(DISTRICTS.map((d) => [d.id, doorOf(d)]))
 
 // ───────────────────────────── pedestrian network ─────────────────────────────
+// People keep to the pavements that run along both sides of every road, and only
+// step into the carriageway on the crossings at each junction.
+
+/** distance of the pavement line from the road centre */
+export const PAVE = 2.6
+export interface Zebra { x: number; z: number; /** true when it crosses a road that runs north–south */ acrossV: boolean; w: number }
+export const ZEBRAS: Zebra[] = []
+/** centres of the road junctions */
+export const JUNCTIONS: P2[] = []
 
 const key = (p: P2) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`
 const horizontal = (r: (typeof ROADS)[number]) => r.a[1] === r.b[1]
+const span = (r: (typeof ROADS)[number]): [number, number] => (horizontal(r) ? [Math.min(r.a[0], r.b[0]), Math.max(r.a[0], r.b[0])] : [Math.min(r.a[1], r.b[1]), Math.max(r.a[1], r.b[1])])
+const fixedOf = (r: (typeof ROADS)[number]) => (horizontal(r) ? r.a[1] : r.a[0])
 
+/** the point on the nearest pavement in front of a door */
 function footOf(door: P2): P2 {
   let best: P2 = door, bd = Infinity
   for (const r of ROADS) {
     if (!horizontal(r)) continue
-    const x0 = Math.min(r.a[0], r.b[0]), x1 = Math.max(r.a[0], r.b[0])
+    const [x0, x1] = span(r)
     if (door[0] < x0 || door[0] > x1) continue
     const d = Math.abs(door[1] - r.a[1])
-    if (d < bd) { bd = d; best = [door[0], r.a[1]] }
+    if (d < bd) { bd = d; best = [door[0], r.a[1] + Math.sign(door[1] - r.a[1] || 1) * PAVE] }
   }
   return best
 }
@@ -118,26 +130,42 @@ export const FEET: Record<string, P2> = Object.fromEntries(Object.entries(DOORS)
 
 const nodes = new Map<string, P2>()
 const adj = new Map<string, { to: string; w: number }[]>()
-for (const r of ROADS) {
-  const h = horizontal(r)
-  const on: P2[] = [r.a, r.b]
-  for (const o of ROADS) {
-    if (o === r || horizontal(o) === h) continue
-    const p: P2 = h ? [o.a[0], r.a[1]] : [r.a[0], o.a[1]]
-    const [rv, r0, r1] = h ? [p[0], Math.min(r.a[0], r.b[0]), Math.max(r.a[0], r.b[0])] : [p[1], Math.min(r.a[1], r.b[1]), Math.max(r.a[1], r.b[1])]
-    const [ov, o0, o1] = h ? [p[1], Math.min(o.a[1], o.b[1]), Math.max(o.a[1], o.b[1])] : [p[0], Math.min(o.a[0], o.b[0]), Math.max(o.a[0], o.b[0])]
-    if (rv >= r0 && rv <= r1 && ov >= o0 && ov <= o1) on.push(p)
+{
+  const zebras = new Map<string, Zebra>()
+  for (const r of ROADS) {
+    const h = horizontal(r), [t0, t1] = span(r), c = fixedOf(r)
+    for (const side of [-1, 1]) {
+      const fixed = c + side * PAVE
+      const at = (t: number): P2 => (h ? [t, fixed] : [fixed, t])
+      const stations = new Set<number>([t0, t1])
+      const crossings: { from: number; to: number; road: (typeof ROADS)[number] }[] = []
+      for (const o of ROADS) {
+        if (o === r || horizontal(o) === h) continue
+        const co = fixedOf(o), [u0, u1] = span(o)
+        if (co < t0 - 0.01 || co > t1 + 0.01 || c < u0 - 0.01 || c > u1 + 0.01) continue
+        stations.add(co - PAVE); stations.add(co + PAVE)
+        if (h && !JUNCTIONS.some((j) => j[0] === co && j[1] === c)) JUNCTIONS.push([co, c])
+        // the other road's carriageway lies across this pavement only where that road actually continues
+        if (fixed >= u0 - 0.01 && fixed <= u1 + 0.01) crossings.push({ from: co - PAVE, to: co + PAVE, road: o })
+      }
+      for (const f of Object.values(FEET)) if (Math.abs((h ? f[1] : f[0]) - fixed) < 0.01 && h) stations.add(f[0])
+      const ts = [...stations].sort((a, b) => a - b)
+      for (let i = 0; i < ts.length; i++) {
+        const p = at(ts[i])
+        nodes.set(key(p), p)
+        if (i === 0 || ts[i] - ts[i - 1] < 0.05) continue
+        const q = at(ts[i - 1])
+        const a = key(q), b = key(p), w = dist(p, q)
+        ;(adj.get(a) ?? adj.set(a, []).get(a)!).push({ to: b, w })
+        ;(adj.get(b) ?? adj.set(b, []).get(b)!).push({ to: a, w })
+      }
+      for (const x of crossings) {
+        const m = at((x.from + x.to) / 2)
+        zebras.set(key(m), { x: m[0], z: m[1], acrossV: h, w: x.road.w })
+      }
+    }
   }
-  if (h) for (const f of Object.values(FEET)) if (f[1] === r.a[1]) on.push(f)
-  on.sort((a, b) => (h ? a[0] - b[0] : a[1] - b[1]))
-  for (let i = 0; i < on.length; i++) {
-    nodes.set(key(on[i]), on[i])
-    if (i === 0) continue
-    const a = key(on[i - 1]), b = key(on[i]), w = dist(on[i - 1], on[i])
-    if (a === b) continue
-    ;(adj.get(a) ?? adj.set(a, []).get(a)!).push({ to: b, w })
-    ;(adj.get(b) ?? adj.set(b, []).get(b)!).push({ to: a, w })
-  }
+  ZEBRAS.push(...zebras.values())
 }
 
 function shortest(from: P2, to: P2): P2[] {
@@ -161,10 +189,10 @@ function shortest(from: P2, to: P2): P2[] {
   return out
 }
 
-/** Walking route between two districts: door → pavement → along the roads → door. */
-export function walkRoute(from: string, to: string): Path {
+/** Walking route between two districts: door → pavement → along the pavements and over the crossings → door. `lane` spreads people across the pavement. */
+export function walkRoute(from: string, to: string, lane = 0): Path {
   const pts: P2[] = [DOORS[from], ...shortest(FEET[from], FEET[to]), DOORS[to]]
-  return makePath(pts, { radius: 0.9, lane: 2.0, taper: 2.4, step: 0.4 })
+  return makePath(pts, { radius: 0.5, lane, taper: 1.5, step: 0.4 })
 }
 
 // ───────────────────────────── fixed routes ─────────────────────────────
@@ -177,15 +205,20 @@ const stand = roomRects(DISTRICT_BY_ID.apron).find((r) => r.room.id === 'stand')
 export const STAND1: P2 = [stand.x - 0.253 * stand.w, stand.z]
 export const STAND2: P2 = [STAND1[0] + 17.5, stand.z]
 
+export const APRON_LOOP: P2[] = [[STAND2[0] + 11.2, -24.9], [20.6, -24.9], [20.6, -40.4], [STAND2[0] + 11.2, -40.4]]
+const LINE_VAN: P2[] = [[DOORS.apron[0] + 3.4, DOORS.apron[1] - 1.6], [STAND1[0] - 10.6, DOORS.apron[1] - 1.6], [STAND1[0] - 10.6, STAND1[1] + 4.6]]
+
 export const ROUTES = {
   publicEast: makePath([[-230, 8], [230, 8]], { lane: 0.82 }),
   publicWest: makePath([[230, 8], [-230, 8]], { lane: 0.82 }),
-  campusCw: makePath([[-46.5, 8], [53, 8], [53, 30], [-46.5, 30]], { closed: true, lane: 0.75, radius: 2.4 }),
-  campusCcw: makePath([[-46.5, 30], [53, 30], [53, 8], [-46.5, 8]], { closed: true, lane: 0.75, radius: 2.4 }),
-  hangarBlock: makePath([[18.5, 8], [18.5, -21], [-21.5, -21], [-21.5, 8]], { closed: true, lane: 0.62, radius: 2 }),
-  workshopBlock: makePath([[18.5, 8], [53, 8], [53, -21], [18.5, -21]], { closed: true, lane: 0.62, radius: 2 }),
-  apronLoop: makePath([[STAND1[0] - 11.5, -23.7], [STAND2[0] + 10.5, -23.7], [STAND2[0] + 10.5, -40.8], [STAND1[0] - 11.5, -40.8]], { closed: true, radius: 2.2 }),
-  lineVan: makePath([[DOORS.apron[0] + 3.4, DOORS.apron[1] - 1.6], [STAND1[0] - 9.6, DOORS.apron[1] - 1.6], [STAND1[0] - 9.6, STAND1[1] + 4.6]], { radius: 2 }),
+  campusCw: makePath([[-46.5, 8], [53, 8], [53, 30], [-46.5, 30]], { closed: true, lane: 0.75, radius: 1.7 }),
+  campusCcw: makePath([[-46.5, 30], [53, 30], [53, 8], [-46.5, 8]], { closed: true, lane: 0.75, radius: 1.7 }),
+  hangarBlock: makePath([[18.5, 8], [18.5, -21], [-21.5, -21], [-21.5, 8]], { closed: true, lane: 0.62, radius: 1.5 }),
+  workshopBlock: makePath([[18.5, 8], [53, 8], [53, -21], [18.5, -21]], { closed: true, lane: 0.62, radius: 1.5 }),
+  // the apron service loop runs round the GSE park, clear of both stands and their wingtips
+  apronLoop: makePath(APRON_LOOP, { closed: true, radius: 2.2 }),
+  lineVan: makePath(LINE_VAN, { radius: 2 }),
+  lineVanBack: makePath([...LINE_VAN].reverse(), { radius: 2 }),
 }
 
 /** short loops for people who work in the open: around the aircraft, on the apron */

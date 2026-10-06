@@ -9,10 +9,10 @@
  *
  * "Front" is the -z façade: the side the default camera looks at.
  */
-import { CATEGORY_COLOR, DISTRICTS, placePosition, roomRects, type District } from '../content/city'
+import { CATEGORY_COLOR, DISTRICTS, placePosition, roomRects, type District, type RoomRect } from '../content/city'
 import { C, clamp, hash, mix, rng, shade, tint } from './world'
 import { place, type Part, type V3 } from './parts'
-import { cone, platform, prop, vehicle } from './prefabs'
+import { bench, bin, cone, cooler, cylinders, extinguisher, lockers, pallet, plant, platform, prop, toolChest, vehicle, workbench } from './prefabs'
 
 export interface SignSpec {
   text: string
@@ -92,7 +92,15 @@ function flatRoof(c: Ctx, x: number, z: number, w: number, dp: number, h: number
 }
 
 function pad(c: Ctx, m = 1.6) {
-  c.B.fixed.push({ p: [c.cx, 0.06, c.cz], s: [c.w + m * 2, 0.12, c.dp + m * 2], c: C.pad })
+  const { B, cx, cz, w, dp, back } = c
+  B.fixed.push({ p: [cx, 0.06, cz], s: [w + m * 2, 0.12, dp + m * 2], c: C.pad })
+  // building services on the back wall: condensers, a meter cabinet and a downpipe at each corner
+  for (let i = 0; i < 2; i++) {
+    const x = cx + w / 2 - 1.6 - i * 1.5
+    B.fixed.push({ p: [x, 0.5, back + 0.55], s: [1.1, 0.76, 0.6], c: C.steelLight }, { p: [x, 0.5, back + 0.86], s: [0.7, 0.5, 0.02], c: C.dark, g: 'cyl', r: [Math.PI / 2, 0, 0] }, { p: [x, 0.09, back + 0.55], s: [1.2, 0.08, 0.7], c: C.curb })
+  }
+  B.fixed.push({ p: [cx - w / 2 + 1.2, 0.75, back + 0.2], s: [0.8, 1.3, 0.3], c: C.steel })
+  for (const s of [-1, 1]) B.walls.push({ p: [cx + s * (w / 2 - 0.25), c.h / 2, back + 0.08], s: [0.12, c.h, 0.12], c: C.steel, g: 'cyl' })
 }
 
 function entrance(c: Ctx, x: number, y0 = 0, wide = 2.8) {
@@ -101,6 +109,10 @@ function entrance(c: Ctx, x: number, y0 = 0, wide = 2.8) {
   B.walls.push({ p: [x, y0 + 2.45, front - 0.7], s: [wide, 0.14, 1.5], c: accent })
   for (const s of [-1, 1]) B.walls.push({ p: [x + s * (wide / 2 - 0.15), y0 + 1.2, front - 1.3], s: [0.12, 2.4, 0.12], c: C.steel })
   B.fixed.push({ p: [x, 0.09, front - 2.2], s: [wide, 0.18, 3.0], c: C.curb })
+  // door mat, planters, a bench and a bin: a place people actually use
+  B.fixed.push({ p: [x, 0.19, front - 1.0], s: [wide * 0.5, 0.02, 0.8], c: C.dark })
+  for (const s of [-1, 1]) B.fixed.push({ p: [x + s * (wide / 2 + 0.55), 0.3, front - 0.75], s: [0.6, 0.48, 0.6], c: C.stone }, { p: [x + s * (wide / 2 + 0.55), 0.82, front - 0.75], s: [0.62, 0.66, 0.62], c: C.hedge, g: 'sphere' })
+  B.fixed.push(...bench(x + wide / 2 + 2.2, front - 0.7, 1.5, Math.PI).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })), ...bin(x - wide / 2 - 1.5, front - 0.6, C.green).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })))
 }
 
 function rooftopSign(c: Ctx, text: string, x = c.cx, z = c.front + 0.5, y = c.h + 0.86) {
@@ -304,7 +316,7 @@ function hangar(c: Ctx) {
 }
 
 function hangarDressing(c: Ctx) {
-  const { B, cx, cz, dp } = c
+  const { B, cx, cz, dp, accent } = c
   const az = cz - 0.14 * dp - 0.2 // aircraft bay centre; the aircraft itself is drawn by the aircraft layer, nose towards the door
   const I = B.interior
   // painted nose-in line and safety zone
@@ -323,6 +335,18 @@ function hangarDressing(c: Ctx) {
     I.push(...cone(cx + s * 8.3, az - 1.2), ...cone(cx + s * 8.3, az + 2.2), ...cone(cx + s * 1.6, az - 8.4))
   }
   I.push(...place(vehicle('gpu', C.yellow), cx - 6.6, az - 6.2, 0.4))
+  // along the walls: parts racks, tool chests, lockers, extinguisher points and FOD bins
+  const wx = c.w / 2 - 1.0
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 3; k++) I.push(...place(toolChest(0, 0, k % 2 ? C.blue : C.red), cx + s * wx, az - 6 + k * 3.2, s * Math.PI / 2).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })))
+    I.push(...extinguisher(cx + s * (wx + 0.2), az - 9.2).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })), ...bin(cx + s * (wx - 0.1), az + 4.6, C.yellow).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })))
+    // a green walkway down each side, and a hose reel on the wall
+    I.push({ p: [cx + s * (wx - 1.3), 0.158, az - 1], s: [0.9, 0.012, 15], c: '#8fb98a' })
+    I.push({ p: [cx + s * (c.w / 2 - 0.5), 1.6, az + 2.5], s: [0.5, 0.5, 0.16], c: C.red, g: 'cyl', r: [0, 0, Math.PI / 2] })
+    // wheel chocks and a drip tray under each engine
+    I.push({ p: [cx + s * 2.5, 0.2, az - 0.7], s: [1.2, 0.05, 1.0], c: C.steel }, { p: [cx + s * 1.25, 0.2, az + 0.55], s: [0.45, 0.14, 0.16], c: C.yellow })
+  }
+  I.push(...place(pallet(0, 0, 7, accent), cx + 7.2, az + 4.4, 0.3).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })), ...place(pallet(0, 0, 11), cx - 8.6, az + 3.6, -0.2).map((p) => ({ ...p, p: [p.p[0], p.p[1] + 0.12, p.p[2]] as V3 })))
   // an engine cowl opened for access: work in progress
   I.push({ p: [cx - 3.1, 0.95, az - 0.9], s: [0.06, 0.7, 1.4], c: C.white, r: [0, 0, 0.5] }, { p: [cx - 1.85, 0.95, az - 0.9], s: [0.06, 0.7, 1.4], c: C.white, r: [0, 0, -0.5] })
 }
@@ -380,8 +404,8 @@ function apron(c: Ctx) {
   B.signs.push({ text: 'LINE STATION', p: [ls.x + 3, 2.36, ls.z + 2.46], w: 4.2, h: 0.5 })
   // GSE park
   const gp = rect('gse-park')
-  B.fixed.push(...place(vehicle('stairs', C.white), gp.x + 4.5, gp.z + 1.5, Math.PI), ...place(vehicle('gpu', C.yellow), gp.x + 2.2, gp.z + 3.2, Math.PI))
-  B.fixed.push(...place(vehicle('cart', C.blue), gp.x - 3.0, gp.z + 3.4, Math.PI / 2), ...place(vehicle('cart', C.blue), gp.x - 5.0, gp.z + 3.4, Math.PI / 2))
+  B.fixed.push(...place(vehicle('stairs', C.white), gp.x + 4.5, gp.z + 0.6, Math.PI), ...place(vehicle('gpu', C.yellow), gp.x + 2.2, gp.z + 1.6, Math.PI))
+  B.fixed.push(...place(vehicle('cart', C.blue), gp.x - 3.0, gp.z + 1.8, Math.PI / 2), ...place(vehicle('cart', C.blue), gp.x - 5.0, gp.z + 1.8, Math.PI / 2))
   // occasional / remote location: a field shelter away from the base
   const rl = rect('remote-location')
   B.fixed.push({ p: [rl.x + 2.2, 1.1, rl.z + 2.6], s: [4.4, 2.2, 3.4], c: C.white, g: 'arc' }, { p: [rl.x + 2.2, 0.1, rl.z + 2.6], s: [4.6, 0.06, 3.6], c: C.curb })
@@ -431,11 +455,19 @@ function interior(c: Ctx) {
       B.interior.push({ p: [rc.x, fy + 0.03, rc.z], s: [rc.w, 0.06, rc.d], c: zone ? mix('#f4f0e7', zone, 0.34) : rc.room.id === 'aircraft-bay' ? '#dcdedc' : mix('#f4f0e7', accent, i % 2 ? 0.2 : 0.12) })
     }
     if (!open) {
-      const ph = 0.7
+      const ph = 0.7, door = Math.min(1.0, rc.w * 0.3), dx = rc.x - rc.w * 0.26
+      const zf = rc.z - rc.d / 2 + 0.04, zb = rc.z + rc.d / 2 - 0.04
+      // back and side walls, with a glazed screen along the back; the front wall has a doorway
+      B.interior.push({ p: [rc.x, fy + ph / 2, zb], s: [rc.w, ph, 0.09], c: C.trim }, { p: [rc.x, fy + ph + 0.19, zb], s: [rc.w - 0.2, 0.38, 0.03], c: '#d4e6ee', m: 'glass' }, { p: [rc.x, fy + ph + 0.4, zb], s: [rc.w, 0.04, 0.06], c: C.steelLight })
       for (const s of [-1, 1]) {
-        B.interior.push({ p: [rc.x, fy + ph / 2, rc.z + s * (rc.d / 2 - 0.04)], s: [rc.w, ph, 0.09], c: C.trim })
         B.interior.push({ p: [rc.x + s * (rc.w / 2 - 0.04), fy + ph / 2, rc.z], s: [0.09, ph, rc.d], c: C.trim })
+        B.interior.push({ p: [rc.x + s * (rc.w / 2 - 0.04), fy + 0.56, zb], s: [0.09, 1.12, 0.09], c: C.steelLight })
       }
+      const l0 = rc.x - rc.w / 2, l1 = dx - door / 2, r0 = dx + door / 2, r1 = rc.x + rc.w / 2
+      B.interior.push({ p: [(l0 + l1) / 2, fy + ph / 2, zf], s: [l1 - l0, ph, 0.09], c: C.trim }, { p: [(r0 + r1) / 2, fy + ph / 2, zf], s: [r1 - r0, ph, 0.09], c: C.trim })
+      for (const x of [l1, r0]) B.interior.push({ p: [x, fy + 0.55, zf], s: [0.08, 1.1, 0.12], c: accent })
+      B.interior.push({ p: [r0 + 0.03, fy + 0.5, zf + door * 0.42], s: [0.05, 1.0, door * 0.86], c: C.wood, r: [0, 0.35, 0] })
+      B.interior.push({ p: [dx, fy + 0.065, zf + 0.45], s: [door * 0.8, 0.012, 0.5], c: shade(accent, 0.1) })
     }
     for (const a of rc.room.anchors) {
       if (a.prop === 'aircraft') continue
@@ -444,6 +476,7 @@ function interior(c: Ctx) {
       for (const p of parts) p.p[1] += fy
       ;(d.kind === 'apron' ? B.fixed : B.interior).push(...parts)
     }
+    if (!open) dress(c, rc, spots.filter((s) => s.place.startsWith(`${d.id}/${rc.room.id}/`)), zone)
   })
   // regulatory documents: the forms themselves, on display
   if (d.id === 'documents') {
@@ -453,6 +486,77 @@ function interior(c: Ctx) {
     B.signs.push({ text: 'EASA FORM 3-145', p: [f3.x, fy + 1.9, f3.z + 1.0], w: 2.0, h: 2.6, style: 'form3' })
     for (const r of [f1, f3]) B.interior.push({ p: [r.x, fy + 1.9, r.z + 1.06], s: [r === f1 ? 2.8 : 2.2, r === f1 ? 2.04 : 2.8, 0.08], c: C.navy }, { p: [r.x, fy + 0.45, r.z + 1.06], s: [0.14, 0.9, 0.1], c: C.steel })
     void cr
+  }
+}
+
+/**
+ * Furnish a room around the things that carry requirements. Nothing here means
+ * anything: it only makes the room read as the kind of place it is, and it never
+ * takes the spot of an anchor.
+ */
+function dress(c: Ctx, rc: RoomRect, spots: AnchorSpot[], zone?: string) {
+  const { B, d, accent } = c
+  const fy = B.floorY
+  const r = rng(hash(d.id + rc.room.id))
+  const s = clamp(Math.min(rc.w, rc.d) / 4.6, 0.55, 1)
+  const taken: [number, number, number][] = spots.flatMap((sp): [number, number, number][] => [[sp.x, sp.z + 0.4 * sp.scale, 1.45 * sp.scale], ...(sp.role ? [[sp.x - 0.75 * sp.scale, sp.z - 0.3 * sp.scale, 0.6] as [number, number, number]] : [])])
+  // keep the doorway clear
+  taken.push([rc.x - rc.w * 0.26, rc.z - rc.d / 2 + 0.5, 0.9])
+  const put = (parts: Part[], x: number, z: number, rad: number, ry = 0) => {
+    if (Math.abs(x - rc.x) > rc.w / 2 - 0.3 * s || Math.abs(z - rc.z) > rc.d / 2 - 0.3 * s) return false
+    if (taken.some(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) < tr + rad)) return false
+    taken.push([x, z, rad])
+    const placed = place(parts, x, z, ry, s)
+    for (const p of placed) p.p[1] += fy
+    B.interior.push(...placed)
+    return true
+  }
+  const back = rc.z + rc.d / 2 - 0.42 * s, front = rc.z - rc.d / 2 + 0.45 * s, left = rc.x - rc.w / 2 + 0.45 * s, right = rc.x + rc.w / 2 - 0.45 * s
+  const along = (n: number, i: number) => left + ((right - left) * (i + 0.5)) / n
+  const industrial = d.kind === 'workshop' || d.kind === 'hangar'
+  if (industrial) {
+    // marked floor, a bench against the back wall, tools and gas, an extinguisher by the door
+    B.interior.push({ p: [rc.x, fy + 0.064, rc.z], s: [rc.w - 0.7, 0.01, rc.d - 0.7], c: mix('#dcdedc', accent, 0.1) })
+    for (const k of [-1, 1]) B.interior.push({ p: [rc.x, fy + 0.07, rc.z + k * (rc.d / 2 - 0.35)], s: [rc.w - 0.7, 0.012, 0.07], c: C.yellow }, { p: [rc.x + k * (rc.w / 2 - 0.35), fy + 0.07, rc.z], s: [0.07, 0.012, rc.d - 0.7], c: C.yellow })
+    // a run of benches, racks and machines along the back wall, as many as the room takes
+    const slots = Math.max(1, Math.floor(rc.w / (2.7 * s)))
+    for (let i = 0; i < slots; i++) {
+      const x = along(slots, i), k = (i + Math.floor(r() * 3)) % 3
+      if (k === 0) put(workbench(0, 0, 2.2, accent), x, back - 0.1, 1.0 * s)
+      else if (k === 1) put(prop('rack', hash(rc.room.id) + i, accent), x, back - 0.15, 1.05 * s)
+      else put([{ p: [0, 0.55, 0], s: [1.5, 1.1, 0.8], c: tint(accent, 0.3) }, { p: [0.3, 1.25, 0], s: [0.6, 0.3, 0.5], c: C.steelLight }, { p: [-0.5, 1.2, -0.1], s: [0.26, 0.5, 0.26], c: C.steel, g: 'cyl' }, { p: [0.55, 0.8, -0.41], s: [0.3, 0.22, 0.02], c: '#9fd4f0', m: 'glow' }, { p: [0, 0.03, 0], s: [1.8, 0.02, 1.1], c: C.yellow }], x, back - 0.15, 0.95 * s)
+    }
+    // work in hand in the middle of the floor: a trolley of parts and a stool
+    put([{ p: [0, 0.5, 0], s: [0.9, 0.05, 0.55], c: C.steelLight }, { p: [0, 0.18, 0], s: [0.9, 0.05, 0.55], c: C.steelLight }, { p: [-0.2, 0.62, 0], s: [0.3, 0.18, 0.3], c: C.wood }, { p: [0.22, 0.6, 0.05], s: [0.22, 0.14, 0.22], c: accent, g: 'cyl' }, ...[-1, 1].flatMap((sx): Part[] => [-1, 1].map((sz): Part => ({ p: [sx * 0.4, 0.26, sz * 0.24], s: [0.04, 0.52, 0.04], c: C.steel })))], rc.x + rc.w * 0.2, rc.z - rc.d * 0.05, 0.6 * s, 0.4)
+    put(toolChest(0, 0, r() < 0.5 ? C.red : C.blue), r() < 0.5 ? left + 0.2 : right - 0.2, rc.z + rc.d * 0.12, 0.5 * s, Math.PI / 2)
+    put(cylinders(0, 0), right - 0.3, back, 0.55 * s) || put(cylinders(0, 0), left + 0.3, back, 0.55 * s)
+    put(lockers(0, 0, 2, C.steel), left + 0.3, back, 0.55 * s)
+    put(extinguisher(0, 0), right, front, 0.25)
+    put(pallet(0, 0, hash(rc.room.id), accent), right - 0.4, rc.z - rc.d * 0.2, 0.6 * s)
+    put(bin(0, 0, C.yellow), left, front, 0.25)
+  } else if (d.kind === 'warehouse') {
+    // aisle lines, pallets waiting along the back wall, a hand truck's worth of boxes by the door
+    for (const k of [-1, 1]) B.interior.push({ p: [rc.x + k * rc.w * 0.2, fy + 0.066, rc.z], s: [0.06, 0.012, rc.d - 0.9], c: zone ?? C.yellow })
+    for (let i = 0; i < 4; i++) put(pallet(0, 0, hash(rc.room.id) + i, zone ?? accent), along(4, i), back - 0.1, 0.55 * s)
+    put(pallet(0, 0, hash(rc.room.id) + 9, zone ?? accent), right - 0.2, rc.z - rc.d * 0.15, 0.55 * s, 0.3)
+    put(extinguisher(0, 0), right, front, 0.25)
+    put(bin(0, 0, zone ?? C.steel), left, front, 0.25)
+  } else {
+    // a rug, something green, storage along the back wall, water and a bin by the door
+    const rug = d.kind === 'institution' ? C.navy : mix(accent, '#ffffff', 0.5)
+    B.interior.push({ p: [rc.x, fy + 0.064, rc.z + rc.d * 0.04], s: [rc.w * 0.6, 0.012, rc.d * 0.5], c: rug }, { p: [rc.x, fy + 0.067, rc.z + rc.d * 0.04], s: [rc.w * 0.6 - 0.3, 0.012, rc.d * 0.5 - 0.3], c: mix(rug, '#ffffff', 0.25) })
+    put(plant(0, 0, 1.1), r() < 0.5 ? left : right, back, 0.35 * s)
+    // larger rooms get a meeting corner and more storage
+    if (rc.w * rc.d > 34) {
+      put([{ p: [0, 0.5, 0], s: [1.1, 0.06, 1.1], c: C.wood, g: 'cyl' }, { p: [0, 0.25, 0], s: [0.12, 0.5, 0.12], c: C.steel, g: 'cyl' }, { p: [0.15, 0.545, 0.1], s: [0.3, 0.012, 0.22], c: C.paper, r: [0, 0.4, 0] }], rc.x + rc.w * 0.24, rc.z + rc.d * 0.2, 0.75 * s)
+      put(prop('shelf', hash(rc.room.id) + 5), rc.x - rc.w * 0.22, back, 1.15 * s)
+      put(lockers(0, 0, 3, C.steelLight), rc.x + rc.w * 0.3, back, 0.7 * s)
+    }
+    put(prop('cabinet', hash(rc.room.id) + 3), rc.x + (r() - 0.5) * rc.w * 0.2, back + 0.05, 0.95 * s) || put(lockers(0, 0, 2, C.steelLight), rc.x, back, 0.5 * s)
+    put(cooler(0, 0), right, front + 0.1, 0.3 * s) || put(cooler(0, 0), left, back, 0.3 * s)
+    put(bin(0, 0), right - 0.5 * s, front, 0.22)
+    put(plant(0, 0, 0.8), left, rc.z + rc.d * 0.1, 0.3 * s)
+    if (rc.w > 5) put(bench(0, 0, 1.4, Math.PI / 2), right, rc.z + rc.d * 0.1, 0.7 * s)
   }
 }
 

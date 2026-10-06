@@ -59,6 +59,14 @@ describe('dataset', () => {
       else if (!it_.deleted) expect(marks(it_.blocks).length, id).toBeGreaterThan(0)
     }
   })
+  it('has no decorative rooms: every room and every object or role in it carries at least one requirement', () => {
+    const bare: string[] = []
+    for (const d of DISTRICTS) for (const r of d.rooms) {
+      if (!itemsAt(`${d.id}/${r.id}`).length) bare.push(`${d.id}/${r.id}`)
+      for (const an of r.anchors) if (!itemsAt(`${d.id}/${r.id}/${an.id}`).length) bare.push(`${d.id}/${r.id}/${an.id}`)
+    }
+    expect(bare).toEqual([])
+  })
   it('attaches every AMC and GM to an existing parent', () => {
     for (const id of part145) {
       const it_ = ITEMS[id]

@@ -4,7 +4,7 @@
  */
 import type { PropKind } from '../content/city'
 import { C, mix, rng, shade, tint } from './world'
-import type { Part } from './parts'
+import { place, type Part } from './parts'
 
 const BOOKS = ['#3c5f8a', '#5a7fa8', '#2f4a6b', '#7c93ab', '#b7791f', '#8a5a44', '#4f6d7a', '#c9c3b4']
 
@@ -17,6 +17,11 @@ export function prop(kind: PropKind, seed: number, tintC?: string): Part[] {
       P.push({ p: [-0.68, 0.3, 0], s: [0.07, 0.6, 0.68], c: C.steel }, { p: [0.68, 0.3, 0], s: [0.07, 0.6, 0.68], c: C.steel })
       P.push({ p: [0.3, 0.9, 0.18], s: [0.5, 0.34, 0.04], c: C.dark }, { p: [0.3, 0.7, 0.2], s: [0.08, 0.1, 0.08], c: C.steel })
       P.push({ p: [-0.35, 0.665, -0.05], s: [0.3, 0.015, 0.4], c: C.paper, r: [0, 0.2, 0] })
+      // lit screen, keyboard, mug, drawer unit and a chair pushed back from the desk
+      P.push({ p: [0.3, 0.9, 0.155], s: [0.44, 0.28, 0.012], c: '#bfe3f5', m: 'glow' }, { p: [0.3, 0.665, -0.12], s: [0.36, 0.02, 0.13], c: C.dark })
+      P.push({ p: [-0.58, 0.71, 0.2], s: [0.08, 0.1, 0.08], c: tintC ?? C.red, g: 'cyl' }, { p: [0.45, 0.3, 0.02], s: [0.36, 0.52, 0.6], c: C.steelLight })
+      for (let i = 0; i < 3; i++) P.push({ p: [0.45, 0.14 + i * 0.17, -0.285], s: [0.2, 0.025, 0.012], c: C.dark })
+      P.push(...chair(-0.1, 0.78, Math.PI + (r() - 0.5) * 0.8, tintC ?? C.blue))
       break
     }
     case 'shelf': {
@@ -109,28 +114,97 @@ export function prop(kind: PropKind, seed: number, tintC?: string): Part[] {
   return P
 }
 
+/** Office chair: seat, back and a five-star base. Faces -z when `ry` is 0. */
+export function chair(x: number, z: number, ry = 0, col: string = C.blue): Part[] {
+  const s = Math.sin(ry), c = Math.cos(ry)
+  return [
+    { p: [x, 0.04, z], s: [0.46, 0.04, 0.46], c: C.dark, g: 'cyl' }, { p: [x, 0.22, z], s: [0.06, 0.34, 0.06], c: C.steel, g: 'cyl' },
+    { p: [x, 0.42, z], s: [0.44, 0.07, 0.44], c: col, r: [0, ry, 0] }, { p: [x + s * 0.2, 0.7, z + c * 0.2], s: [0.42, 0.5, 0.06], c: col, r: [0, ry, 0] },
+  ]
+}
+export const plant = (x: number, z: number, s = 1): Part[] => [
+  { p: [x, 0.18 * s, z], s: [0.36 * s, 0.36 * s, 0.36 * s], c: '#b98f6a', g: 'cyl' }, { p: [x, 0.62 * s, z], s: [0.6 * s, 0.7 * s, 0.6 * s], c: C.tree, g: 'sphere' }, { p: [x + 0.12 * s, 0.92 * s, z - 0.05 * s], s: [0.36 * s, 0.44 * s, 0.36 * s], c: C.tree2, g: 'sphere' },
+]
+export const bin = (x: number, z: number, col: string = C.steel): Part[] => [{ p: [x, 0.2, z], s: [0.26, 0.4, 0.26], c: col, g: 'cyl' }]
+export const extinguisher = (x: number, z: number): Part[] => [
+  { p: [x, 0.3, z], s: [0.16, 0.5, 0.16], c: '#c8362b', g: 'cyl' }, { p: [x, 0.6, z], s: [0.07, 0.12, 0.07], c: C.dark, g: 'cyl' }, { p: [x, 0.03, z], s: [0.3, 0.05, 0.3], c: C.yellow },
+]
+export const cooler = (x: number, z: number): Part[] => [
+  { p: [x, 0.5, z], s: [0.34, 1.0, 0.34], c: C.white }, { p: [x, 1.2, z], s: [0.28, 0.4, 0.28], c: '#a9d4ee', g: 'cyl', m: 'glass' },
+]
+export const lockers = (x: number, z: number, n = 3, col: string = C.steel): Part[] => {
+  const P: Part[] = []
+  for (let i = 0; i < n; i++) {
+    const lx = x + (i - (n - 1) / 2) * 0.42
+    P.push({ p: [lx, 0.9, z], s: [0.4, 1.8, 0.45], c: i % 2 ? col : tint(col, 0.18) }, { p: [lx + 0.12, 1.0, z - 0.23], s: [0.03, 0.16, 0.015], c: C.dark }, { p: [lx, 1.55, z - 0.23], s: [0.22, 0.1, 0.012], c: C.dark })
+  }
+  return P
+}
+export const bench = (x: number, z: number, w = 1.6, ry = 0): Part[] => place([
+  { p: [0, 0.42, 0], s: [w, 0.07, 0.4], c: C.wood }, { p: [-w / 2 + 0.12, 0.2, 0], s: [0.08, 0.4, 0.36], c: C.steel }, { p: [w / 2 - 0.12, 0.2, 0], s: [0.08, 0.4, 0.36], c: C.steel },
+  { p: [0, 0.74, 0.18], s: [w, 0.3, 0.05], c: C.wood },
+], x, z, ry)
+/** A pallet with a wrapped load. */
+export function pallet(x: number, z: number, seed: number, col?: string): Part[] {
+  const r = rng(seed)
+  const P: Part[] = [{ p: [x, 0.06, z], s: [1.0, 0.12, 0.8], c: shade(C.wood, 0.2) }]
+  const n = 1 + Math.floor(r() * 3)
+  let y = 0.12
+  for (let i = 0; i < n; i++) {
+    const h = 0.26 + r() * 0.2, w = 0.9 - i * 0.12 - r() * 0.1
+    P.push({ p: [x + (r() - 0.5) * 0.06, y + h / 2, z + (r() - 0.5) * 0.06], s: [w, h, w * 0.78], c: i === 0 && col ? tint(col, 0.35) : r() < 0.5 ? C.wood : tint(C.wood, 0.25) })
+    y += h
+  }
+  P.push({ p: [x, 0.3, z - 0.41], s: [0.3, 0.2, 0.01], c: C.paper })
+  return P
+}
+/** Workbench with a vice, a pegboard of tools and an open drawer of parts. */
+export function workbench(x: number, z: number, w = 2.2, col: string = C.blue): Part[] {
+  const P: Part[] = [
+    { p: [x, 0.84, z], s: [w, 0.08, 0.7], c: C.wood }, { p: [x, 0.42, z + 0.05], s: [w - 0.1, 0.8, 0.56], c: tint(col, 0.1) },
+    { p: [x, 1.5, z + 0.33], s: [w, 1.1, 0.05], c: C.steelLight },
+    { p: [x - w / 2 + 0.3, 0.98, z - 0.2], s: [0.22, 0.2, 0.26], c: C.dark }, { p: [x - w / 2 + 0.3, 1.02, z - 0.36], s: [0.26, 0.06, 0.06], c: C.steel },
+  ]
+  const tools = [C.red, C.yellow, C.dark, C.steel, C.orange, C.blue]
+  for (let i = 0; i < Math.floor(w / 0.3); i++) P.push({ p: [x - w / 2 + 0.25 + i * 0.3, 1.3 + ((i * 7) % 4) * 0.13, z + 0.3], s: [0.06 + (i % 3) * 0.05, 0.26, 0.03], c: tools[i % tools.length] })
+  for (let i = 0; i < 3; i++) P.push({ p: [x - 0.3 + i * 0.35, 0.3 + (i % 2) * 0.28, z - 0.235], s: [0.28, 0.03, 0.012], c: C.dark })
+  return P
+}
+export const toolChest = (x: number, z: number, col: string = C.red): Part[] => [
+  { p: [x, 0.5, z], s: [0.8, 0.8, 0.46], c: col }, { p: [x, 0.92, z], s: [0.84, 0.05, 0.5], c: C.dark }, { p: [x, 0.05, z], s: [0.7, 0.1, 0.4], c: C.dark },
+  ...[0, 1, 2, 3].map((i): Part => ({ p: [x, 0.22 + i * 0.18, z - 0.235], s: [0.5, 0.025, 0.012], c: C.steelLight })),
+]
+export const cylinders = (x: number, z: number): Part[] => [
+  { p: [x, 0.05, z], s: [0.9, 0.1, 0.5], c: C.dark }, { p: [x, 0.75, z + 0.24], s: [0.9, 1.3, 0.04], c: C.steel },
+  ...[C.green, '#c8362b', C.white].flatMap((c, i): Part[] => [{ p: [x - 0.28 + i * 0.28, 0.65, z], s: [0.22, 1.1, 0.22], c, g: 'cyl' }, { p: [x - 0.28 + i * 0.28, 1.25, z], s: [0.1, 0.12, 0.1], c: C.steel, g: 'cyl' }]),
+]
+
 export type VehicleKind = 'car' | 'van' | 'tug' | 'cart' | 'forklift' | 'fuel' | 'bus' | 'truck' | 'stairs' | 'gpu'
 
 /** Vehicles: local +z is forward. */
 export function vehicle(kind: VehicleKind, color: string): Part[] {
   const wheels = (z: number[], w = 1.0, rad = 0.34): Part[] => z.map((zz) => ({ p: [0, rad / 2, zz], s: [w + 0.06, rad, rad], c: C.dark }))
+  const lights = (w: number, zf: number, zb: number, y: number): Part[] => [-1, 1].flatMap((s): Part[] => [
+    { p: [s * (w / 2 - 0.16), y, zf + 0.005], s: [0.2, 0.1, 0.03], c: '#fff3c4', m: 'glow' }, { p: [s * (w / 2 - 0.14), y, zb - 0.005], s: [0.18, 0.09, 0.03], c: '#d8402f', m: 'glow' },
+  ])
   switch (kind) {
     case 'car': return [
       { p: [0, 0.4, 0], s: [1.0, 0.42, 2.2], c: color }, { p: [0, 0.76, -0.12], s: [0.9, 0.34, 1.15], c: C.glassDark },
-      { p: [0, 0.94, -0.12], s: [0.86, 0.04, 1.0], c: color }, ...wheels([0.68, -0.68]),
+      { p: [0, 0.94, -0.12], s: [0.86, 0.04, 1.0], c: color }, ...wheels([0.68, -0.68]), ...lights(1.0, 1.1, -1.1, 0.44),
+      { p: [0, 0.24, 1.08], s: [1.02, 0.12, 0.08], c: C.dark }, { p: [0, 0.24, -1.08], s: [1.02, 0.12, 0.08], c: C.dark },
     ]
     case 'van': return [
       { p: [0, 0.68, -0.25], s: [1.12, 0.95, 2.0], c: color }, { p: [0, 0.5, 1.02], s: [1.12, 0.6, 0.56], c: color },
       { p: [0, 0.92, 0.82], s: [1.06, 0.4, 0.3], c: C.glassDark, r: [-0.35, 0, 0] }, { p: [0, 0.52, -0.25], s: [1.14, 0.14, 2.02], c: C.orange },
-      { p: [0, 1.2, 0.2], s: [0.5, 0.1, 0.24], c: C.yellow }, ...wheels([0.85, -0.85]),
+      { p: [0, 1.2, 0.2], s: [0.5, 0.1, 0.24], c: C.yellow }, ...wheels([0.85, -0.85]), ...lights(1.12, 1.3, -1.25, 0.5),
     ]
     case 'bus': return [
       { p: [0, 0.78, 0], s: [1.2, 1.1, 3.6], c: color }, { p: [0, 0.95, 0], s: [1.22, 0.42, 3.3], c: C.glassDark },
-      { p: [0, 0.4, 0], s: [1.22, 0.12, 3.62], c: C.navy }, ...wheels([1.2, -1.2], 1.1),
+      { p: [0, 0.4, 0], s: [1.22, 0.12, 3.62], c: C.navy }, ...wheels([1.2, -1.2], 1.1), ...lights(1.2, 1.8, -1.8, 0.52), { p: [0, 1.22, 1.6], s: [0.8, 0.16, 0.05], c: C.amber },
     ]
     case 'truck': return [
       { p: [0, 0.72, 1.35], s: [1.2, 1.0, 0.9], c: color }, { p: [0, 0.98, 1.72], s: [1.1, 0.4, 0.2], c: C.glassDark },
-      { p: [0, 0.98, -0.45], s: [1.3, 1.5, 2.6], c: C.white }, { p: [0, 0.3, 0.2], s: [1.0, 0.16, 3.6], c: C.dark }, ...wheels([1.35, -0.6, -1.3], 1.15),
+      { p: [0, 0.98, -0.45], s: [1.3, 1.5, 2.6], c: C.white }, { p: [0, 0.3, 0.2], s: [1.0, 0.16, 3.6], c: C.dark }, ...wheels([1.35, -0.6, -1.3], 1.15), ...lights(1.2, 1.8, -1.75, 0.5),
     ]
     case 'tug': return [
       { p: [0, 0.34, 0], s: [1.2, 0.36, 1.9], c: color }, { p: [0, 0.68, -0.35], s: [0.9, 0.36, 0.7], c: C.glassDark },

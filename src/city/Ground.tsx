@@ -9,7 +9,7 @@ import { DISTRICTS, PERIMETER, ROADS, RUNWAY, TAXIWAY } from '../content/city'
 import { C, rng, world } from './world'
 import { build, disposeGroup, GEO, place, type Part } from './parts'
 import { lamp, tree, vehicle } from './prefabs'
-import { STAND1, STAND2, DOORS, FEET } from './layout'
+import { APRON_LOOP, STAND1, STAND2, DOORS, FEET, PAVE, ZEBRAS } from './layout'
 import { Sign } from './Signs'
 import type { SignSpec } from './buildings'
 
@@ -54,7 +54,13 @@ function groundParts(): { parts: Part[]; pools: Pool[]; signs: SignSpec[] } {
     signs.push({ text: `STAND ${i + 1}`, p: [sx - 4.6, 0.11, sz + 7.2], w: 4.4, h: 0.9, flat: true, style: 'paint', color: 'rgba(240,235,221,.85)' })
   })
   // apron service road
-  for (const z of [-23.7, -40.8]) for (let x = STAND1[0] - 11; x < STAND2[0] + 10; x += 2.4) flat(x, x + 1.2, z - 1.05, z - 0.95, 0.106, C.mark, 0.004)
+  {
+    const [[x0, z1], [x1], [, z0]] = APRON_LOOP
+    for (const k of [-1, 1]) {
+      for (let x = x0 + 1.5; x < x1 - 1.5; x += 2.4) { flat(x, x + 1.2, z1 - k * 1.0 - 0.05, z1 - k * 1.0 + 0.05, 0.106, C.mark, 0.004); flat(x, x + 1.2, z0 + k * 1.0 - 0.05, z0 + k * 1.0 + 0.05, 0.106, C.mark, 0.004) }
+      for (let z = z0 + 1.5; z < z1 - 1.5; z += 2.4) { flat(x0 + k * 1.0 - 0.05, x0 + k * 1.0 + 0.05, z, z + 1.2, 0.106, C.mark, 0.004); flat(x1 - k * 1.0 - 0.05, x1 - k * 1.0 + 0.05, z, z + 1.2, 0.106, C.mark, 0.004) }
+    }
+  }
 
   // roads, with a centre line on public and internal ones
   for (const rd of ROADS) {
@@ -66,6 +72,24 @@ function groundParts(): { parts: Part[]; pools: Pool[]; signs: SignSpec[] } {
     if (rd.kind === 'service') continue
     if (h) for (let x = x0 + 1; x < x1 - 1; x += 3) flat(x, x + 1.3, rd.a[1] - 0.05, rd.a[1] + 0.05, 0.074, C.mark, 0.004)
     else for (let z = z0 + 1; z < z1 - 1; z += 3) flat(rd.a[0] - 0.05, rd.a[0] + 0.05, z, z + 1.3, 0.074, C.mark, 0.004)
+  }
+  // pavements along both sides of every road, and zebra crossings at the junctions
+  for (const rd of ROADS) {
+    const h = rd.a[1] === rd.b[1]
+    const t0 = Math.min(h ? rd.a[0] : rd.a[1], h ? rd.b[0] : rd.b[1]), t1 = Math.max(h ? rd.a[0] : rd.a[1], h ? rd.b[0] : rd.b[1])
+    for (const s of [-1, 1]) {
+      const cc = (h ? rd.a[1] : rd.a[0]) + s * PAVE
+      if (h) flat(t0 - PAVE - 0.7, t1 + PAVE + 0.7, cc - 0.7, cc + 0.7, 0.078, rd.kind === 'service' ? C.curb : C.pad, 0.035)
+      else flat(cc - 0.7, cc + 0.7, t0 - PAVE - 0.7, t1 + PAVE + 0.7, 0.078, C.pad, 0.035)
+    }
+  }
+  for (const zb of ZEBRAS) {
+    const n = Math.max(3, Math.round(zb.w / 0.62))
+    for (let i = 0; i < n; i++) {
+      const o = -zb.w / 2 + (zb.w * (i + 0.5)) / n
+      if (zb.acrossV) flat(zb.x + o - 0.15, zb.x + o + 0.15, zb.z - 0.65, zb.z + 0.65, 0.076, C.mark, 0.004)
+      else flat(zb.x - 0.65, zb.x + 0.65, zb.z + o - 0.15, zb.z + o + 0.15, 0.076, C.mark, 0.004)
+    }
   }
   // paths from every door to its pavement
   for (const d of DISTRICTS) {
@@ -103,9 +127,9 @@ function groundParts(): { parts: Part[]; pools: Pool[]; signs: SignSpec[] } {
   }
 
   // lamps along the roads, floodlights over the apron
-  for (let x = -100; x <= 92; x += 16) { P.push(...lamp(x, 8 + (Math.round(x / 16) % 2 ? 2.4 : -2.4))); pools.push({ x, z: 8, r: 9, warm: true }) }
-  for (let x = -66; x <= 50; x += 16) { P.push(...lamp(x + 5, 30 + (Math.round(x / 16) % 2 ? 2.2 : -2.2))); pools.push({ x: x + 5, z: 30, r: 8, warm: true }) }
-  for (const x of [-21.5, 18.5, -46.5, 53]) for (const z of [-8, 19]) { P.push(...lamp(x + 2.1, z)); pools.push({ x, z, r: 7, warm: true }) }
+  for (let x = -100; x <= 92; x += 16) { P.push(...lamp(x, 8 + (Math.round(x / 16) % 2 ? 3.7 : -3.7))); pools.push({ x, z: 8, r: 9, warm: true }) }
+  for (let x = -66; x <= 50; x += 16) { P.push(...lamp(x + 5, 30 + (Math.round(x / 16) % 2 ? 3.7 : -3.7))); pools.push({ x: x + 5, z: 30, r: 8, warm: true }) }
+  for (const x of [-21.5, 18.5, -46.5, 53]) for (const z of [-8, 19]) { P.push(...lamp(x + 3.7, z)); pools.push({ x, z, r: 7, warm: true }) }
   for (const x of [-64, -40, 20, 44]) {
     P.push({ p: [x, 5.5, -22.6], s: [0.22, 11, 0.22], c: C.steel, g: 'cyl' }, { p: [x, 11, -22.8], s: [2.4, 0.5, 0.4], c: C.steel }, { p: [x, 10.9, -23.02], s: [2.1, 0.34, 0.06], c: '#f4f7ff', m: 'glass' })
     pools.push({ x, z: -31, r: 17, warm: false })

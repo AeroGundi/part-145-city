@@ -95,8 +95,9 @@ the road network. Buildings are domains, never single regulations; points attach
 | `parts.ts` | everything static is a list of coloured primitives → one `InstancedMesh` per geometry/material |
 | `buildings.ts`, `prefabs.ts` | architecture and props generated from the model |
 | `Districts.tsx` | cut-away opening (roof lifts, walls drop) and click targets |
-| `layout.ts` | paths, pedestrian network from the road model, traffic routes |
-| `Life.tsx`, `aircraft.ts` | people, vehicles, aircraft, clouds — closed-form functions of a clock and a seeded PRNG |
+| `layout.ts` | paths, pavements and zebra crossings derived from the road model, traffic routes |
+| `traffic.ts` | vehicles and pedestrians that see each other: fixed-step, seeded simulation (following, give-way at junctions, keep-clear boxes, yielding to people and aircraft); covered by `traffic.test.ts` |
+| `Life.tsx`, `aircraft.ts` | draws people, vehicles, aircraft, clouds; aircraft and clouds are closed-form functions of the clock |
 | `Overlays.tsx`, `Labels.tsx` | pins, connection arcs, information-security layer; DOM labels projected each frame |
 | `CityCanvas.tsx` | light, day/night, camera flights (GSAP), keyboard control |
 
