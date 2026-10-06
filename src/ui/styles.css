@@ -336,3 +336,6 @@ td .rt-amd::before { left: -6px; }
 .legend-looks li { display: flex; align-items: center; gap: 0; }
 .legend-looks i { width: 9px; height: 13px; flex: none; border: 1px solid rgba(0,0,0,.18); }
 .legend-looks i + i { margin-right: 7px; border-left: 0; }
+/* the legend never grows past the viewport: it scrolls, and its close button stays in reach */
+.legend { max-height: calc(100% - 24px); box-sizing: border-box; overflow-y: auto; padding-top: 0; }
+.legend header { position: sticky; top: 0; z-index: 1; background: var(--card); padding: 10px 0 6px; margin-bottom: 0; align-items: center; }
