@@ -22,7 +22,8 @@ export async function hydrate() {
   const settings = await safe(() => db.kv.get('settings'), undefined)
   const mode = await safe(() => db.kv.get('mode'), undefined)
   useApp.setState((s) => ({
-    settings: { ...DEFAULT_SETTINGS, ...((settings?.value as Partial<Settings>) ?? {}) },
+    // the legend is a reference card: it always starts closed, whatever it was last time
+    settings: { ...DEFAULT_SETTINGS, ...((settings?.value as Partial<Settings>) ?? {}), legendOpen: false },
     mode: (mode?.value as Mode) ?? s.mode,
   }))
   useApp.subscribe((s, prev) => {
