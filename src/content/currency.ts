@@ -1,26 +1,41 @@
 /**
- * Known gaps between the ingested EASA export and the law as it stands.
+ * How current the dataset is, beyond what the ingestion can state by itself.
  *
  * EDITORIAL, and deliberately conservative: each entry records only what an official
- * page states, with the date it was checked. The affected points are NOT listed
- * because they were not verified — read the amending act itself.
- * Remove an entry once an export that incorporates it has been ingested.
+ * page or act states, with the date it was checked.
+ *
+ * The acts that DO change Part-145 after the ingested export are not listed here —
+ * they are applied by `scripts/ingest/amend.ts` and described in `DATA.meta.amendments`.
  */
 export interface CurrencyGap { act: string; what: string; status: string; url: string; checked: string }
 
-export const CURRENCY_GAPS: CurrencyGap[] = [
-  {
-    act: 'Commission Implementing Regulation (EU) 2025/111',
-    what: 'Amends Regulation (EU) No 1321/2014, including Annex II (Part-145), as regards continuing airworthiness of electric- and hybrid-propulsion and other non-conventional aircraft.',
-    status: 'Applicable from 13 February 2026. EASA states it is not incorporated in the September 2025 Easy Access Rules and will be in the next revision.',
-    url: 'https://eur-lex.europa.eu/eli/reg_impl/2025/111/oj/eng',
-    checked: '2026-10-06',
-  },
-  {
-    act: 'ED Decision 2026/005/R',
-    what: 'Issues AMC and GM to Part-145 — Issue 2, Amendment 9 (airworthiness review process; alignment with Regulation (EU) No 376/2014 on occurrence reporting). The dataset ends at Issue 2, Amendment 7, so Amendment 8 is missing as well.',
-    status: 'Published by EASA in 2026; not in the ingested export.',
-    url: 'https://www.easa.europa.eu/en/document-library/agency-decisions/ed-decision-2026005r',
-    checked: '2026-10-06',
-  },
-]
+/** Acts known to change Part-145 that are NOT reflected in the dataset. Empty when there are none. */
+export const CURRENCY_GAPS: CurrencyGap[] = []
+
+export interface ReviewedAct { act: string; finding: string; url: string }
+
+/** When and against what the list of amending acts was last compared. */
+export const CURRENCY_REVIEW: { checked: string; basis: { label: string; url: string }[]; noChange: ReviewedAct[]; scope: string[] } = {
+  checked: '2026-10-06',
+  basis: [
+    { label: 'EASA — Continuing airworthiness: regulation, amending regulations, AMC & GM', url: 'https://www.easa.europa.eu/en/regulations/continuing-airworthiness' },
+    { label: 'EASA — AMC & GM to Part-145 (all issues and amendments)', url: 'https://www.easa.europa.eu/en/document-library/acceptable-means-of-compliance-and-guidance-material/group/part-145---maintenance-organisation-approvals' },
+    { label: 'EASA — Easy Access Rules for Continuing Airworthiness (latest revision: September 2025)', url: 'https://www.easa.europa.eu/en/document-library/easy-access-rules/easy-access-rules-continuing-airworthiness' },
+  ],
+  noChange: [
+    {
+      act: 'Commission Implementing Regulation (EU) 2026/100',
+      finding: 'Amends Regulation (EU) No 1321/2014 as from 7 August 2026, but only its Article 3 and Annexes I (Part-M), Vb (Part-ML), Vc (Part-CAMO) and Vd (Part-CAO). It contains no amendment to Annex II (Part-145). Points of those annexes that Part-145 refers to may have changed; they are external references here.',
+      url: 'https://eur-lex.europa.eu/eli/reg_impl/2026/100/oj',
+    },
+    {
+      act: 'ED Decisions 2026/002/R and 2026/005/R — AMC & GM to Part-M, Issue 2, Amendments 9 and 10',
+      finding: 'Neither amends the AMC or GM to Appendix II to Part-M (EASA Form 1), the only Part-M material reproduced in this dataset.',
+      url: 'https://www.easa.europa.eu/en/document-library/agency-decisions/ed-decision-2026005r',
+    },
+  ],
+  scope: [
+    'Only Annex II (Part-145) is reproduced. The articles of Regulation (EU) No 1321/2014 itself, which Regulations (EU) 2025/111 and 2026/100 also amend, are outside the dataset.',
+    'The amended wording was applied by this application, not by EASA. When EASA publishes the next Easy Access Rules revision, ingest it and remove the amendments it incorporates.',
+  ],
+}

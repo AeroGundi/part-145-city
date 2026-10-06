@@ -34,6 +34,8 @@ export interface ParaBlock {
   /** full point path for IR list items, e.g. "(d)(1)(i)" */
   path?: string
   runs: Inline[]
+  /** id of the later amendment (`Dataset.meta.amendments`) that introduced or changed this paragraph */
+  amd?: string
 }
 
 export interface TableCell {
@@ -47,6 +49,8 @@ export interface TableCell {
 export interface TableBlock {
   k: 'table'
   rows: TableCell[][]
+  /** id of the later amendment that introduced or changed this table */
+  amd?: string
 }
 
 export type Block = ParaBlock | TableBlock
@@ -99,6 +103,51 @@ export interface RegItem {
   referencedBy: string[]
   /** position in the published document */
   order: number
+  /** later amendments applied to this item on top of the EASA export, oldest first */
+  amendments?: ItemAmendment[]
+  /** the item's text as it stands in the EASA export, kept when a later amendment changed it */
+  previous?: Block[]
+  /** id of the amendment that deleted this item; `blocks` is then empty */
+  deleted?: string
+}
+
+/**
+ * An amending act published after the ingested EASA export and applied on top of it.
+ * The amended wording is taken from the act itself (`sourceFile`) and checked against it.
+ */
+export interface Amendment {
+  id: string
+  /** full name of the act, as published */
+  act: string
+  /** short form, same style as `RegSource.document` */
+  short: string
+  kind: 'IR' | 'AMC_GM'
+  /** subject of the act, as published */
+  subject: string
+  /** e.g. "AMC and GM to Part-145 — Issue 2, Amendment 8" */
+  issue?: string
+  /** ISO date of publication */
+  published: string
+  /** ISO date from which the amended text applies */
+  applicableFrom: string
+  /** the act's own wording on entry into force / application */
+  applicationClause: string
+  url: string
+  /** official source files the text was taken from, relative to the project root */
+  sourceFiles: string[]
+  /** items of the dataset changed by this act */
+  items: string[]
+  /** verification of the amended text against the act: units checked / equal character for character */
+  verified: { checked: number; exact: number; notes: string[] }
+}
+
+export interface ItemAmendment {
+  /** `Amendment.id` */
+  by: string
+  /** the amending instruction exactly as the act words it, when it has one */
+  instruction?: string
+  /** how the act presents the change when it gives no instruction (marked-up text) */
+  presentation?: string
 }
 
 export interface Definition {
@@ -131,6 +180,8 @@ export interface Dataset {
     integrity: { checked: number; exact: number; failed: string[] }
     /** distinct regulatory sources found in Part-145, as published */
     sources: string[]
+    /** acts published after the export and applied on top of it by `scripts/ingest/amend.ts` */
+    amendments: Amendment[]
     warnings: string[]
   }
   toc: TocNode[]

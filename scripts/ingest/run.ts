@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseTopic } from './word'
+import { applyAmendments } from './amend'
 import type { Block, Dataset, Definition, Inline, ParaBlock, RegItem, RegReference, RegSection, RegType, TocNode } from '../../src/data/schema'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -249,6 +250,10 @@ const lastRev = revRows.map((t, i) => (MONTH_YEAR.test(t) ? i : -1)).filter((i) 
 const revision = lastRev === undefined ? null : { label: revRows[lastRev], changes: revRows.slice(lastRev + 1).filter((t) => !/^\(/.test(t)) }
 if (!revision) warn('Publication revision table not found in the front matter')
 
+// ───────────────────────── 3e. later amendments ───────────────────────────────
+// Acts published after this export, applied from their own official text (see amend.ts).
+const amendments = applyAmendments(root, items, warn)
+
 // ───────────────────────── 4. hierarchy ────────────────────────────────────────
 const irIds = order.filter((id) => items[id].type === 'IR')
 const part145Count = order.filter((id) => items[id].section !== 'LINKED').length
@@ -382,7 +387,7 @@ const toc: TocNode[] = sectionOrder.filter((s) => sectionLabels.has(s)).map((s) 
 
 // ───────────────────────── 9. write ────────────────────────────────────────────
 const counts: Record<string, number> = {}
-for (const id of order) counts[items[id].type] = (counts[items[id].type] ?? 0) + 1
+for (const id of order) if (!items[id].deleted) counts[items[id].type] = (counts[items[id].type] ?? 0) + 1
 if (unknownStyles.size) warn(`Unmapped Word styles rendered as plain paragraphs: ${[...unknownStyles].join(', ')}`)
 if (part145Count !== part145.length) warn(`${part145.length - part145Count} Part-145 topic(s) could not be ingested`)
 
@@ -396,7 +401,8 @@ const dataset: Dataset = {
     counts,
     revision,
     integrity: { checked: integrityChecked, exact: integrityChecked - integrityFailed.length, failed: integrityFailed },
-    sources: [...new Set(order.map((id) => items[id].source.document))].sort(),
+    sources: [...new Set([...order.map((id) => items[id].source.document), ...amendments.map((a) => a.short)])].sort(),
+    amendments,
     warnings,
   },
   toc, items, order, definitions,
@@ -407,5 +413,6 @@ console.log(`\n${dataset.meta.sourceTitle}\npublished ${dataset.meta.publishedAt
 console.log(`topics in Annex II (Part-145): ${part145.length} → ingested ${part145Count} (+${order.length - part145Count} linked)`, counts)
 console.log(`revision: ${revision?.label ?? 'not found'} — ${revision?.changes.join(' ') ?? ''}`)
 console.log(`integrity: ${integrityChecked - integrityFailed.length}/${integrityChecked} topics match the source character for character`)
+for (const a of amendments) console.log(`amended by ${a.short} (applicable ${a.applicableFrom}): ${a.items.join(', ')} — ${a.verified.exact}/${a.verified.checked} verified against the act`)
 console.log(`definitions: ${definitions.length} · warnings: ${warnings.length}`)
 console.log(`→ ${outPath} (${(JSON.stringify(dataset).length / 1024).toFixed(0)} kB)`)

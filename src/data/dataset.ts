@@ -3,7 +3,7 @@
  * for official text; UI components only ever read it through these helpers.
  */
 import raw from './generated/part145.json?raw'
-import type { Block, Dataset, ParaBlock, RegItem } from './schema'
+import type { Amendment, Block, Dataset, ParaBlock, RegItem } from './schema'
 
 export const DATA = JSON.parse(raw) as Dataset
 export const ITEMS = DATA.items
@@ -85,5 +85,10 @@ export function topParas(it: RegItem): { owner: RegItem; block: ParaBlock }[] {
   }
   return out
 }
+
+/** Acts published after the EASA export and applied on top of it, by id. */
+export const AMENDMENTS: Record<string, Amendment> = Object.fromEntries(DATA.meta.amendments.map((a) => [a.id, a]))
+/** The export's own revision name, e.g. "September 2025". */
+export const EXPORT_REVISION = DATA.meta.revision?.label ?? fmtDate(DATA.meta.publishedAt.slice(0, 10))
 
 export const DATASET_LABEL = `EASA Easy Access Rules · published ${fmtDate(DATA.meta.publishedAt.slice(0, 10))}`

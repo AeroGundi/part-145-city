@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, Search } from 'lucide-react'
-import { DATA, ITEMS, itemUrl, pointOf, rootPoint, statusOf } from '../data/dataset'
+import { AMENDMENTS, DATA, ITEMS, itemUrl, pointOf, rootPoint, statusOf } from '../data/dataset'
 import type { TocNode } from '../data/schema'
 import { useApp } from '../store/app'
 import { goItem } from '../nav'
@@ -30,6 +30,7 @@ function Node({ n, depth, q, open, toggle, selected }: { n: TocNode; depth: numb
           {depth === 0 && <i className="toc-dot" style={{ background: color }} aria-hidden />}
           <span className="toc-ref">{it.type === 'IR' || depth === 0 ? it.reference : it.reference.replace(/\s145\.[AB]\.\d+A?/, ' ')}</span>
           <span className="toc-title">{it.title}</span>
+          {it.amendments && <span className={it.deleted ? 'toc-del' : 'toc-amd'} title={`${it.deleted ? 'Deleted' : 'Amended'} by ${it.amendments.map((x) => AMENDMENTS[x.by].short).join(', ')}`}>{it.deleted ? 'deleted' : 'amended'}</span>}
           {statusOf(it) === 'future' && <span className="toc-future" title="Not yet applicable">future</span>}
           {depth === 0 && !q && (it.amc.length + it.gm.length + sub.length > 0) && <span className="toc-count">{kids.length}</span>}
         </a>

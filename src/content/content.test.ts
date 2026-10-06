@@ -9,6 +9,8 @@ import { blocksText } from '../data/schema'
 import { DISTRICTS, resolvePlace, placePosition, roomRects } from './city'
 import { LOCATION_RULES, locate, INFOSEC_NODES, INFOSEC_ITEMS } from './mapping'
 import { EDITORIAL } from './editorial'
+import { CURRENCY_GAPS } from './currency'
+import type { Block } from '../data/schema'
 import { SCENARIOS } from './scenarios'
 import { PROCESSES, DEFINITION_PLACES } from './processes'
 import { GRAPH_STATS, connectionsOf, itemsAt, placesOf } from '../graph/graph'
@@ -18,6 +20,7 @@ const part145 = DATA.order.filter((id) => ITEMS[id].section !== 'LINKED')
 describe('dataset', () => {
   it('was ingested without losing text', () => {
     expect(DATA.meta.integrity.failed).toEqual([])
+    expect(CURRENCY_GAPS, 'amending acts known but not applied').toEqual([])
     expect(DATA.meta.integrity.exact).toBe(DATA.order.length)
   })
   it('has the sections of Annex II and all four appendices', () => {
@@ -28,8 +31,32 @@ describe('dataset', () => {
     for (const id of DATA.order) {
       const it_ = ITEMS[id]
       expect(it_.source.document, id).not.toBe('')
+      if (it_.deleted) { expect(it_.blocks, id).toEqual([]); continue }
       const text = blocksText(it_.blocks) + (it_.parts ?? []).map((p) => blocksText(ITEMS[p].blocks)).join('')
       expect(text.length, id).toBeGreaterThan(0)
+    }
+  })
+  it('applies later amendments only from verified, applicable acts and keeps the earlier text', () => {
+    const known = new Set(DATA.meta.amendments.map((a) => a.id))
+    const marks = (bs: Block[]): string[] => bs.flatMap((b) => [...(b.amd ? [b.amd] : []), ...(b.k === 'table' ? b.rows.flatMap((r) => r.flatMap((c) => marks(c.blocks))) : [])])
+    for (const a of DATA.meta.amendments) {
+      expect(a.verified.exact, a.short).toBe(a.verified.checked)
+      expect(a.verified.checked, a.short).toBe(a.items.length)
+      // text that does not apply yet must never be shown as the current requirement
+      expect(new Date(a.applicableFrom).getTime(), a.short).toBeLessThanOrEqual(Date.now())
+      for (const id of a.items) {
+        expect(ITEMS[id]?.amendments?.some((x) => x.by === a.id), id).toBe(true)
+        expect(ITEMS[id].previous?.length, id).toBeGreaterThan(0)
+        expect(blocksText(ITEMS[id].previous!), id).not.toBe(blocksText(ITEMS[id].blocks))
+      }
+    }
+    for (const id of DATA.order) {
+      const it_ = ITEMS[id]
+      const used = [...marks(it_.blocks), ...(it_.amendments ?? []).map((x) => x.by), ...(it_.deleted ? [it_.deleted] : [])]
+      for (const m of used) expect(known.has(m), `${id} → ${m}`).toBe(true)
+      // a change mark needs an amendment on the item, and an amended item shows where it changed
+      if (!it_.amendments) expect(used, id).toEqual([])
+      else if (!it_.deleted) expect(marks(it_.blocks).length, id).toBeGreaterThan(0)
     }
   })
   it('attaches every AMC and GM to an existing parent', () => {

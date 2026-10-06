@@ -1,0 +1,18 @@
+Acceptable Means of Compliance and Guidance Material to Annex II
+(Part-145) to Regulation (EU) No 1321/2014, Issue 2, Amendment 9
+Annex III to ED Decision 2026/005/R
+‘AMC and GM to Part-145 — Issue 2, Amendment 9’
+The amendments are presented as follows:
+— deleted text is {-struck through-};
+— new text is {+highlighted+};
+— an ellipsis ‘[…]’ indicates that the rest of the text is unchanged.
+Note to readers
+‘Agency’ and ‘EASA’ are used interchangeably, and this is most visible in consolidated texts. In all cases, both terms refer to the European Union Aviation Safety Agency.
+Annex II to Decision 2015/029/R of the Executive Director of the Agency of 17 December 2015 is amended as follows:
+{-AMC2 145.A.60 Occurrence reporting -}
+{-The organisation should share relevant safety-related occurrence reports with the design approval holder or the declarant of a declaration of design compliance of the aircraft or component in order to enable it to issue appropriate service instructions and recommendations to all relevant parties. Liaison with the design approval holder or the declarant of a declaration of design compliance is recommended to establish whether published or proposed service information will resolve a problem or to obtain a solution to a particular problem -}
+AMC1 145.B.300(f) Oversight principles
+[…]
+(c) the results of the following types of inspections and surveys if they indicate an issue that originates from a Part-145 organisation:
+[…]
+(iv) {-physical surveys or partial airworthiness reviews -}{+investigations +}performed by the competent authority in {-line -}{+accordance +}with {-AMC -}{+point +}M.B.90{-1-}{+2+}.

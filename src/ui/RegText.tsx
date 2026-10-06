@@ -4,7 +4,7 @@
  */
 import { memo, useEffect, useRef } from 'react'
 import type { Block, Inline, RegItem } from '../data/schema'
-import { ITEMS, itemUrl, rootPoint } from '../data/dataset'
+import { AMENDMENTS, ITEMS, itemUrl, rootPoint } from '../data/dataset'
 import { go } from '../nav'
 
 function Runs({ runs }: { runs: Inline[] }) {
@@ -34,7 +34,7 @@ function Blocks({ blocks, owner, active }: { blocks: Block[]; owner?: RegItem; a
       {blocks.map((b, i) => {
         if (b.k === 'table') {
           return (
-            <div className="rt-table-wrap" key={i} tabIndex={0} role="region" aria-label="Table">
+            <div className={`rt-table-wrap${b.amd ? ' rt-amd-table' : ''}`} key={i} tabIndex={0} role="region" aria-label="Table">
               <table className="rt-table">
                 <tbody>
                   {b.rows.map((row, ri) => (
@@ -61,10 +61,10 @@ function Blocks({ blocks, owner, active }: { blocks: Block[]; owner?: RegItem; a
             </div>
           )
         }
-        const cls = `rt-p rt-${b.style} rt-l${Math.min(b.level, 4)}${b.path && active && (b.path === active || b.path.startsWith(active)) ? ' rt-active' : ''}`
+        const cls = `rt-p rt-${b.style} rt-l${Math.min(b.level, 4)}${b.path && active && (b.path === active || b.path.startsWith(active)) ? ' rt-active' : ''}${b.amd ? ' rt-amd' : ''}`
         const href = b.path && owner ? itemUrl(rootPoint(owner.id).id, b.path) : undefined
         return (
-          <div className={cls} key={i} data-path={b.path}>
+          <div className={cls} key={i} data-path={b.path} title={b.amd && AMENDMENTS[b.amd] ? `As amended by ${AMENDMENTS[b.amd].short}` : undefined}>
             {b.label && (href
               ? <a className="rt-label" href={href} title={`Link to ${rootPoint(owner!.id).reference}${b.path}`} onClick={(e) => { e.preventDefault(); go(href) }}>{b.label}</a>
               : <span className="rt-label">{b.label}</span>)}

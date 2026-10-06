@@ -1,0 +1,26 @@
+Annex III to ED Decision 2026/002/R
+AMC and GM to Part-145 — Issue 2, Amendment 8
+The amendments are presented as follows:
+— deleted text is {-struck through-};
+— new text is {+highlighted+};
+— an ellipsis ‘[…]’ indicates that the rest of the text is unchanged.
+Note to the reader
+In amended, and in particular in existing (that is, unchanged) text, ‘Agency’ is used interchangeably with ‘EASA’. The interchangeable use of these two terms is more apparent in the consolidated versions. Therefore, please note that both terms refer to the ‘European Union Aviation Safety Agency (EASA)’.
+GM1 145.A.10 Scope
+SMALL ORGANISATIONS
+This Guidance Material (GM) provides guidance on how the following small organisations satisfy the intent of Part-145:
+(a) Organisations that {-only -}employ {+only +}one person{-, -}who carries out the certification function and other functions, and that are approved under Part-145 may use the alternatives provided below limited to the {-following -}terms of approval {+specified in point (m) of Appendix II of Part-145.+}{-: -}
+{-Class A2 Base and line maintenance of aeroplanes of 5 700 kg maximum take-off mass (MTOM) or less (with piston engines only) -}
+{-Class A3 Base and line maintenance of single-engined helicopters of 3 175 kg MTOM or less -}
+{-Class A4 Aircraft other than A1, A2 and A3 aircraft -}
+{-Class B2 Piston engines with maximum output of less than 450 HP -}
+{-Class C Components -}
+{-Class D1 Non-destructive testing -}
+[…]
+AMC1 145.A.20 Terms of approval and scope of work
+The following table identifies the ATA Specification 2200 chapter for the category C component rating. If the maintenance manual (or equivalent document) does not follow the ATA {-C-}{+c+}hapters, the corresponding subjects still apply to the applicable C rating.
+CLASS RATING ATA CHAPTERS COMPONENTS OTHER THAN COMPLETE ENGINES OR APUs
+C1 Air Cond & Press 21 C2 Auto Flight 22 C3 Comms and Nav 23 {---}{+– +}34 C4 Doors {---}{+— +}Hatches 52 C5 Electrical Power & Lights 24 – 33 {---}{+– +}85 C6 Equipment 25 {---}{+– +}38 {---}{+– +}44 – 45 {---}{+– +}50 C7 Engine – APU 49 {---}{+– +}71 {---}{+– +}72 {---}{+– +}73 {---}{+– +}74 {---}{+– +}75 {---}{+– +}76 {---}{+– +}77 {---}{+– +}78 {---}{+– +}79 {---}{+– +}80 {---}{+– +}81 {---}{+– +}82 {---}{+– +}83 C8 Flight Controls 27 {---}{+– +}55 {---}{+– +}57.40 {---}{+– +}57.50 {---}{+– +}57.60 {---}{+– +}57.70 C9 Fuel 28 {---}{+– +}47 C10 {+Rotorcraft+}{-Helicopters --}{+— +}Rotors 62 {---}{+– +}64 {---}{+– +}66 {---}{+– +}67 C11 {+Rotorcraft+}{-Helicopter --}{+— +}Trans 63 {---}{+– +}65 C12 Hydraulic Power 29 C13 Indicating/Recording Systems 31 – 42 {---}{+– +}46 C14 Landing Gear 32 C15 Oxygen 35
+C16 Propellers 61 C17 Pneumatic & Vacuum 36 {---}{+– +}37 C18 Protection ice/rain/fire 26 {---}{+– +}30 C19 Windows 56 C20 Structural 53 {---}{+– +}54 {---}{+– +}57.10 {---}{+– +}57.20 {---}{+– +}57.30 C21 Water Ballast 41 C22 Propulsion Augmentation 84 {+C23 Others The rating for an organisation approved for the maintenance of an electric engine that powers a propeller/rotor to generate thrust and/or lift for the aircraft should be B4, rather than C5. +}
+{+C23 should be used as component rating when C1 to C22 or the corresponding ATA chapters are not adequate for the component; for instance, in case of innovative aircraft architectures/systems. +}
+[…]

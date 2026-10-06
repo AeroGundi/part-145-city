@@ -10,7 +10,7 @@ npm install
 npm run dev        # http://localhost:5183
 npm test           # content-integrity and layout tests
 npm run build      # static site in dist/
-npm run ingest     # rebuild the dataset from sources/*.xml (pass another path to ingest a newer EASA export)
+npm run ingest     # rebuild the dataset from sources/*.xml + sources/amendments/* (pass another path to ingest a newer EASA export)
 ```
 
 - `Cmd/Ctrl + K` search · `E` Explore · `R` Reference · `F` Find · arrows / `+ −` / `[ ]` / `0` move the camera

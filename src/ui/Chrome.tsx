@@ -6,6 +6,7 @@ import { useApp } from '../store/app'
 import { goHome, goItem, goPlace } from '../nav'
 import { CatIcon } from './icons'
 import { CURRENCY_GAPS } from '../content/currency'
+import { DATA } from '../data/dataset'
 
 export function Breadcrumbs() {
   const { selectedId, selectedPath, focus, mode } = useApp()
@@ -44,7 +45,7 @@ export function Legend() {
 
 export function DatasetBadge() {
   const set = useApp((s) => s.set)
-  return <button className="dataset-badge" onClick={() => set({ overlay: 'about' })} title="Regulatory dataset & sources"><span>Regulatory dataset</span>{DATASET_LABEL}{CURRENCY_GAPS.length > 0 && <em className="badge-warn">{CURRENCY_GAPS.length} later amendment{CURRENCY_GAPS.length === 1 ? '' : 's'} not included</em>}</button>
+  return <button className="dataset-badge" onClick={() => set({ overlay: 'about' })} title="Regulatory dataset & sources"><span>Regulatory dataset</span>{DATASET_LABEL}{DATA.meta.amendments.length > 0 && <em className="badge-ok">+ {DATA.meta.amendments.length} later amendment{DATA.meta.amendments.length === 1 ? '' : 's'} applied</em>}{CURRENCY_GAPS.length > 0 && <em className="badge-warn">{CURRENCY_GAPS.length} later amendment{CURRENCY_GAPS.length === 1 ? '' : 's'} not included</em>}</button>
 }
 
 export function LayerBanner() {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bookmark, BookmarkCheck, ChevronDown, ExternalLink, Link2, MapPin, Network, X, Lightbulb, ClipboardCheck, Info } from 'lucide-react'
 import type { RegItem } from '../data/schema'
-import { DATA, ITEMS, TYPE_LONG, amcOf, fmtDate, gmOf, itemUrl, pointOf, rootPoint, statusOf, topParas, withParts } from '../data/dataset'
+import { AMENDMENTS, DATA, EXPORT_REVISION, ITEMS, TYPE_LONG, amcOf, fmtDate, gmOf, itemUrl, pointOf, rootPoint, statusOf, topParas, withParts } from '../data/dataset'
 import { runsText } from '../data/schema'
 import { EDITORIAL } from '../content/editorial'
 import { externalRefsOf, placesOf, relatedOf, scenariosFor, itemsAt } from '../graph/graph'
@@ -9,7 +9,7 @@ import { resolvePlace } from '../content/city'
 import { useApp, type Tab } from '../store/app'
 import { getBookmarks, toggleBookmark } from '../store/db'
 import { go, goHome, goItem, goPlace, showInCity } from '../nav'
-import { RegText } from './RegText'
+import { PlainBlocks, RegText } from './RegText'
 import { PlaceTrail, Section, StatusChip, TypeBadge } from './bits'
 import { CatIcon } from './icons'
 
@@ -18,17 +18,46 @@ function SourceLine({ item }: { item: RegItem }) {
   return (
     <div className="source">
       <button className="source-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="source-k">Source</span>{item.source.document || 'not stated'}<ChevronDown size={13} className={open ? 'flip' : ''} aria-hidden />
+        <span className="source-k">Source</span>{item.source.document || 'not stated'}{item.amendments && <em className="source-amd">{item.deleted ? 'deleted' : 'amended'} by {[...new Set(item.amendments.map((x) => AMENDMENTS[x.by].short))].join(', ')}</em>}<ChevronDown size={13} className={open ? 'flip' : ''} aria-hidden />
       </button>
       {open && (
         <dl className="source-dl">
           <dt>Type</dt><dd>{TYPE_LONG[item.type]}{item.family ? ` · ${item.family}` : ''}</dd>
           <dt>{item.type === 'AMC' || item.type === 'GM' || item.type === 'AMC_APPENDIX' ? 'Decision' : 'Regulation'}</dt><dd>{item.source.document || '—'}</dd>
+          {item.amendments?.map((x) => <span key={x.by} style={{ display: 'contents' }}><dt>{item.deleted === x.by ? 'Deleted by' : 'Amended by'}</dt><dd>{AMENDMENTS[x.by].short}, applicable from {fmtDate(AMENDMENTS[x.by].applicableFrom)}</dd></span>)}
           <dt>Entry into force</dt><dd>{fmtDate(item.entryIntoForceDate)}</dd>
           <dt>Applicability</dt><dd>{fmtDate(item.applicabilityDate)}{statusOf(item) === 'future' ? ' — not yet applicable' : ''}</dd>
           <dt>Publication</dt><dd>{DATA.meta.sourceTitle}, EASA eRules export published {fmtDate(DATA.meta.publishedAt.slice(0, 10))}</dd>
           <dt>eRules ID</dt><dd className="mono">{item.source.eRulesId}</dd>
         </dl>
+      )}
+    </div>
+  )
+}
+
+/** Says, next to the text itself, that a later act changed it — and keeps the earlier wording one click away. */
+function AmendmentNote({ item }: { item: RegItem }) {
+  if (!item.amendments?.length) return null
+  return (
+    <div className={`amd${item.deleted ? ' amd-del' : ''}`} role="note">
+      {item.amendments.map((x) => {
+        const a = AMENDMENTS[x.by]
+        return (
+          <p key={x.by}>
+            <b>{item.deleted === x.by ? 'Deleted' : 'Amended'} by {a.short}</b>{a.issue ? ` (${a.issue})` : ''} — applicable from {fmtDate(a.applicableFrom)}.{' '}
+            {x.instruction ? <>The act reads: <q>{x.instruction.replace(/:$/, '')}</q>.</> : x.presentation}{' '}
+            <a href={a.url} target="_blank" rel="noreferrer">Official source <ExternalLink size={11} aria-hidden /></a>
+          </p>
+        )
+      })}
+      <p className="amd-how">
+        {item.deleted ? 'This item no longer exists in the applicable text.' : 'The passages changed are marked with a green bar.'} EASA has not yet re-published its Easy Access Rules with {item.amendments.length > 1 ? 'these acts' : 'this act'}, so the change was applied here from the act’s own text and checked against it.
+      </p>
+      {item.previous && item.previous.length > 0 && (
+        <details>
+          <summary>Text before the amendment — Easy Access Rules, {EXPORT_REVISION}</summary>
+          <PlainBlocks blocks={item.previous} />
+        </details>
       )}
     </div>
   )
@@ -49,6 +78,7 @@ function OfficialText({ point, path }: { point: RegItem; path: string }) {
               {p.source.document !== point.source.document && <em>{p.source.document}</em>}
             </header>
           )}
+          <AmendmentNote item={p} />
           <RegText item={p} active={path.startsWith(p.id.slice(point.id.length)) || p.id === point.id ? path : undefined} />
         </div>
       ))}
@@ -70,12 +100,13 @@ function SubItem({ item, open, onToggle }: { item: RegItem; open: boolean; onTog
         <TypeBadge type={item.type} small />
         <span className="sub-ref">{item.reference}</span>
         <span className="sub-title">{item.title}</span>
+        {item.amendments && <span className={item.deleted ? 'toc-del' : 'toc-amd'}>{item.deleted ? 'deleted' : 'amended'}</span>}
         <ChevronDown size={15} className={open ? 'flip' : ''} aria-hidden />
       </button>
       {open && (
         <div className="sub-body">
           <div className="sub-meta"><SourceLine item={item} /><StatusChip item={item} /></div>
-          <div className="official"><div className="official-tag"><span>Official text</span><span className="official-src">{TYPE_LONG[item.type]} · verbatim</span></div><RegText item={item} /></div>
+          <div className="official"><div className="official-tag"><span>Official text</span><span className="official-src">{TYPE_LONG[item.type]} · verbatim</span></div><AmendmentNote item={item} /><RegText item={item} /></div>
         </div>
       )}
     </article>
@@ -108,8 +139,8 @@ function SubList({ items, selectedId, kind }: { items: RegItem[]; selectedId: st
 function AuditorView({ point }: { point: RegItem }) {
   const ed = EDITORIAL[point.id]
   const paras = topParas(point)
-  const amc = amcOf(point)
-  const gm = gmOf(point)
+  const amc = amcOf(point).filter((a) => !a.deleted)
+  const gm = gmOf(point).filter((a) => !a.deleted)
   const scen = scenariosFor(point.id)
   return (
     <div className="auditor">

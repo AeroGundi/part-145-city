@@ -19,7 +19,7 @@ export function ReferenceView() {
       <main className="ref-home">
         <p className="eyebrow">Reference mode</p>
         <h1>EASA Part-145, point by point</h1>
-        <p className="lead">The complete Annex II (Part-145) with its AMC and GM — {c.IR} rule topics, {c.AMC} AMC, {c.GM} GM — as published by EASA on {fmtDate(DATA.meta.publishedAt.slice(0, 10))}. Pick a point in the tree, or press <kbd>⌘ K</kbd> to search.</p>
+        <p className="lead">The complete Annex II (Part-145) with its AMC and GM — {c.IR} rule topics, {c.AMC} AMC, {c.GM} GM — as published by EASA on {fmtDate(DATA.meta.publishedAt.slice(0, 10))}{DATA.meta.amendments.length ? `, with the ${DATA.meta.amendments.length} amending acts adopted since applied` : ''}. Pick a point in the tree, or press <kbd>⌘ K</kbd> to search.</p>
         <div className="ref-start">{START.filter((s) => ITEMS[s]).map((s) => <button key={s} onClick={() => goItem(s)}><b>{ITEMS[s].reference}</b><span>{ITEMS[s].title}</span><ArrowRight size={14} /></button>)}</div>
         <MiniMap highlight={[]} primary={null} large />
       </main>

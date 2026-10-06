@@ -163,6 +163,23 @@ a.rt-label:hover { color: var(--ir); text-decoration: underline; }
 .rt-note { font-size: 13.5px; color: var(--ink2); } .rt-center { justify-content: center; text-align: center; } .rt-right { justify-content: flex-end; text-align: right; }
 .rt-ref { color: var(--ir); text-decoration: underline; text-decoration-color: rgba(31, 78, 121, .35); text-underline-offset: 2px; }
 .rt-ext { border-bottom: 1px dotted var(--ink3); cursor: help; }
+.rt-amd { position: relative; }
+.rt-amd::before { content: ''; position: absolute; left: -11px; top: 3px; bottom: 3px; width: 3px; border-radius: 2px; background: #2f8f6f; }
+td .rt-amd::before { left: -6px; }
+.rt-amd-table { box-shadow: -3px 0 0 #2f8f6f; padding-left: 6px; }
+.amd { background: #eaf5f0; border: 1px solid #b9dccd; border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+.amd p { margin: 0 0 6px; } .amd q { font-style: italic; } .amd a { white-space: nowrap; }
+.amd .amd-how { color: var(--ink2); }
+.amd details { margin-top: 6px; border-top: 1px solid #b9dccd; padding-top: 8px; }
+.amd summary { cursor: pointer; font-weight: 500; }
+.amd details .rt { margin-top: 8px; opacity: .78; }
+.amd-del { background: #fbeeee; border-color: #e6c3c3; } .amd-del details { border-top-color: #e6c3c3; }
+.source-amd { font-style: normal; color: #1f6f55; margin-left: 6px; }
+.toc-amd, .toc-del { font-family: var(--mono); font-size: 9.5px; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; flex: none; }
+.toc-amd { color: #1f6f55; } .toc-del { color: #a23b3b; }
+.applied { background: #eaf5f0; border: 1px solid #b9dccd; border-radius: 8px; padding: 12px 14px; margin: 16px 0 4px; }
+.applied h3 { margin: 0 0 6px !important; color: #1f6f55; } .applied p { font-size: 12.5px; color: var(--ink2); margin-top: 8px; }
+.badge-ok { font-style: normal; color: #1f6f55; font-size: 11px; }
 .rt-active { background: #fff3c9; box-shadow: -8px 0 0 #fff3c9, 8px 0 0 #fff3c9; }
 .rt-table-wrap { overflow-x: auto; margin: .6em 0 1em; }
 .rt-table { border-collapse: collapse; font-family: var(--sans); font-size: 12.5px; line-height: 1.4; width: 100%; }
